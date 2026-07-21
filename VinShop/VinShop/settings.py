@@ -41,7 +41,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'apps.users'
+    'apps.users',
+    'apps.verifications',
 ]
 
 MIDDLEWARE = [
@@ -148,4 +149,28 @@ SIMPLE_JWT = {
     """
     'ACCESS_TOKEN_LIFETIME' : timedelta(days=1),    # 设置 Access Token（访问令牌）的有效期
     'REFRESH_TOKEN_LIFETIME' : timedelta(days=7),   # 设置 Refresh Token（刷新令牌）的有效期,决定用户 多久需要重新登录一次,一般比ACCESS TOKEN长很多
+}
+
+# 容联云API设置
+RONGLIAN_ACC_ID = 'REDACTED'
+RONGLIAN_ACC_TOKEN = 'REDACTED'
+RONGLIAN_APP_ID = 'REDACTED'
+RONGLIAN_SMS_TEMPLATE_ID = '1'
+
+# Django Cache
+CACHES = {
+    'default': {        # 默认
+        'BACKEND':'django_redis.cache.RedisCache',
+        'LOCATION':'redis://127.0.0.1:6379/0',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    },
+    'code' : {          # 保存验证码(图形，短信)
+        'BACKEND':'django_redis.cache.RedisCache',
+        'LOCATION':'redis://127.0.0.1:6379/1',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    }
 }
