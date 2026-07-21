@@ -147,8 +147,8 @@ SIMPLE_JWT = {
     """
     登录，服务端返回了access token(有效期一天)和 refresh token(有效期一个月)，如果假设一个月都是登录状态，不logout，那么在这期间，就生成了30个不同的access token，但是不会让我强制下线，但是如果30天一到，refresh token过期了，就不会生成access token，那么这个时候access token过期也过期了之后 ，服务端检测不到access token，就会判定未登录，强制让我重新登录
     """
-    'ACCESS_TOKEN_LIFETIME' : timedelta(days=1),    # 设置 Access Token（访问令牌）的有效期
-    'REFRESH_TOKEN_LIFETIME' : timedelta(days=7),   # 设置 Refresh Token（刷新令牌）的有效期,决定用户 多久需要重新登录一次,一般比ACCESS TOKEN长很多
+    'ACCESS_TOKEN_LIFETIME' : timedelta(minutes=15),    # 设置 Access Token（访问令牌）的有效期
+    'REFRESH_TOKEN_LIFETIME' : timedelta(days=1),   # 设置 Refresh Token（刷新令牌）的有效期,决定用户 多久需要重新登录一次,一般比ACCESS TOKEN长很多
 }
 
 # 容联云API设置

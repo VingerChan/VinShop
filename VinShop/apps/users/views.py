@@ -1,10 +1,10 @@
 from django.shortcuts import render
 from rest_framework.request import Request
 from rest_framework.response import Response
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView, GenericAPIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
-from apps.users.serializers import UserRegisterSerializer
+from apps.users.serializers import UserRegisterSerializer,LoginSerializer
 from apps.users.models import User
 class RegisterView(CreateAPIView):  #
     queryset = User.objects.all()
@@ -32,3 +32,25 @@ class RegisterView(CreateAPIView):  #
 
         }
         return Response(data,status=status.HTTP_201_CREATED)
+
+class LoginView(GenericAPIView):
+    serializer_class = LoginSerializer
+    def post(self,request):
+        # 对前端发送的username,password进行反序列化
+        serializer = self.get_serializer(data=request.data)
+        # 验证数据(LoginSerialize里写的用户验证)
+        serializer.is_valid(raise_exception=True)
+        # 获取验证成功后的user模型实例
+        user = serializer.validated_data['user']
+        refresh = RefreshToken.for_user(user)
+        data = {
+            'user' : {
+                'id' : user.id,
+                'username' : user.username,
+                'mobile' : user.mobile
+            },
+            'access' : str(refresh.access_token),
+            'refresh' : str(refresh),
+        }
+        # DRF的Response()默认status是200 OK，一般默认 200 不写
+        return Response(data)
