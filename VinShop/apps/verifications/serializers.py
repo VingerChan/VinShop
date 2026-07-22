@@ -18,7 +18,7 @@ class SMSCodeSerializer(serializers.Serializer):
         if not code:
             raise serializers.ValidationError('图形验证码已过期')
         # 校验frontend_code与Redis的code是否一致
-        if attrs.get('frontend_code') != code.lower():
+        if attrs.get('frontend_code').lower() != code.lower():
             raise serializers.ValidationError('图形验证码错误')
         # 如果没有错误，删除Redis中的code
         cache.delete(attrs['uuid'])

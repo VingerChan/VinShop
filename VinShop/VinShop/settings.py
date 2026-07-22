@@ -112,9 +112,9 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.2/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'Zh-Hans'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Shanghai'
 
 USE_I18N = True
 
@@ -131,22 +131,22 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-REST_FRAMWORK = {
+"""
+    JWT 的验证，不是“查数据库”，而是“验签名 + 读内容”
+"""
+REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        """
-        JWT 的验证，不是“查数据库”，而是“验签名 + 读内容”
-        """
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES':(
-        'rest_framework.permissions.AllowAny'
+        'rest_framework.permissions.AllowAny',
     )
 }
 from datetime import timedelta
-SIMPLE_JWT = {
-    """
+"""
     登录，服务端返回了access token(有效期一天)和 refresh token(有效期一个月)，如果假设一个月都是登录状态，不logout，那么在这期间，就生成了30个不同的access token，但是不会让我强制下线，但是如果30天一到，refresh token过期了，就不会生成access token，那么这个时候access token过期也过期了之后 ，服务端检测不到access token，就会判定未登录，强制让我重新登录
     """
+SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME' : timedelta(minutes=15),    # 设置 Access Token（访问令牌）的有效期
     'REFRESH_TOKEN_LIFETIME' : timedelta(days=1),   # 设置 Refresh Token（刷新令牌）的有效期,决定用户 多久需要重新登录一次,一般比ACCESS TOKEN长很多
 }
@@ -173,4 +173,12 @@ CACHES = {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
     }
+}
+
+FDFS_BASE_URL = 'http://192.168.233.128:8888/'
+FDFS_CLIENT_CONF={
+    'host_tuple':('192.168.233.128',),
+    'port':22122,
+    'timeout':30,
+    'tracker_pool_size':10
 }

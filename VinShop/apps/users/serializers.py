@@ -1,7 +1,10 @@
 from rest_framework import serializers
-from apps.users.models import User
+from apps.users.models import User,UserProfile
 import re
 from django.core.cache import caches
+from utils.default_nickname import generate_default_nickname
+from django.db import transaction
+from VinShop.settings import FDFS_BASE_URL
 # 用到模型创建，所以用ModelSerializer(包含默认的create和update实现)
 class UserRegisterSerializer(serializers.ModelSerializer):
     # 只允许反序列化
@@ -39,8 +42,6 @@ class UserRegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('短信验证码已过期')
         if redis_sms != attrs['sms_code']:
             raise serializers.ValidationError('短信验证码错误')
-        # 通过验证 删除sms_code 并 返回所有数据attrs
-        cache.delete(attrs['mobile'])
         return attrs
     def create(self,validated_data):
         # 直接移除password2，不赋值
@@ -48,7 +49,18 @@ class UserRegisterSerializer(serializers.ModelSerializer):
         validated_data.pop("allow")
         validated_data.pop('sms_code')
         # create_user自动对密码进行哈希加密,和create不同
-        return User.objects.create_user(**validated_data)
+        with transaction.atomic():
+            user = User.objects.create_user(**validated_data)
+            UserProfile.objects.create(
+                user=user,
+                user_img='group1/M00/00/00/wKjpgGpgibGAGEWyAAgMd8DMqI0553',
+                nickname=generate_default_nickname(),
+                gender=0,
+                birthday=None
+            )
+            cache = caches['code']
+            cache.delete(validated_data['mobile'])
+        return user
 
 from django.contrib.auth import authenticate
 class LoginSerializer(serializers.Serializer):
@@ -70,3 +82,17 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError('用户名或密码错误')
         attrs['user'] = user
         return attrs
+
+# ModelSerializer包含默认的create()和update()的实现
+class UserProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserProfile
+        fields = ['user_img','nickname','gender','birthday']
+    # to_representation() 是 DRF 中，把「模型对象 → Python 字典 → JSON」的核心转换函数
+    def to_representation(self,instance):   # 重写
+        # 输出时将user_img拼成完整URL
+        # 重写父类方法，拦截序列化流程
+        data = super().to_representation(instance)
+        if data.get('user_img'):    # 如果data存在user_img
+            data['user_img'] = FDFS_BASE_URL + data['user_img']
+        return data
