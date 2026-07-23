@@ -8,7 +8,6 @@ from rest_framework import status
 from apps.users.serializers import UserRegisterSerializer,LoginSerializer
 from apps.users.models import User
 from VinShop.settings import FDFS_BASE_URL,FDFS_CLIENT_CONF
-from apps.users.serializers import SendSmsEmailSerializer
 from django.core.cache import caches
 import random
 class RegisterView(CreateAPIView):  #
@@ -93,64 +92,54 @@ class ProfileView(GenericAPIView,):
         serializer.save()
         return Response(serializer.data)
 
-# 绑定邮箱[发送手机短信]
-class SendSmsEmailView(APIView):
+from apps.users.serializers import CenterVerifySmsSerializer
+class CenterSmsView(APIView):
     permission_classes = [IsAuthenticated]
-    def post(self,request):
+    # 获取手机短信验证码
+    def get(self,request):
         user = request.user
         # 查看是否频繁发送短信
         cache = caches['code']
         if cache.get(f'email_sms_flag_{user.id}'):
-            return Response({'message':'请不要频繁发送短信'},status=status.HTTP_429_TOO_MANY_REQUESTS)
+            return Response({'message': '请不要频繁发送短信'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         # 发送短信
         sms_code = f"{random.randint(1000, 9999)}"
         cache.set(f"email_sms_{user.id}", sms_code, 300)
         cache.set(f"email_sms_flag_{user.id}", '1', timeout=60)
         from celery_tasks.sms.tasks import send_sms_code
-        send_sms_code.delay(user.mobile,sms_code)
-        return Response({'message':'短信验证码已发送'})
-
-# 绑定邮箱[发送短信验证码]
-from apps.users.serializers import SendSmsEmailSerializer
-class VerifySmsEmailView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = SendSmsEmailSerializer
+        send_sms_code.delay(user.mobile, sms_code)
+        return Response({'message': '短信验证码已发送'})
+    # 验证身份
     def post(self,request):
-        serializer = self.get_serializer(data=request.data)
+        serializer = CenterVerifySmsSerializer(data=request.data,context={'request':request})
         # 校验数据
         serializer.is_valid(raise_exception=True)
-        return Response({"message":'身份验证成功'})
+        return Response({"message": '身份验证成功'})
 
-# 绑定邮箱[发送邮箱验证码]
-from apps.users.serializers import SendEmailCodeSerializer
-class SendEmailCodeView(GenericAPIView):
+from apps.users.serializers import CenterSendEmailSerializer
+from apps.users.serializers import CenterVerifyEmailSerializer
+class CenterEmailView(APIView):
     permission_classes = [IsAuthenticated]
-    serializer_class = SendEmailCodeSerializer
-    def post(self,request):
-        # 校验数据
-        serializer = self.get_serializer(data=request.data)
+    # 获取邮箱验证码
+    def get(self,request):
+        serializer = CenterSendEmailSerializer(data=request.query_params,context={'request':request})
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
         # 检测是否重复发送验证码
         cache = caches['code']
         if cache.get(f"email_flag_{request.user.id}"):
-            return Response({'message':'请勿频繁发送'})
+            return Response({'message': '请勿频繁发送'})
         # 生成邮箱验证码，并存进Redis
-        email_code = f"{random.randint(100000,999999)}"
+        email_code = f"{random.randint(100000, 999999)}"
         cache.set(f"email_{email}", email_code, 300)
         cache.set(f"email_flag_{request.user.id}", '1', timeout=60)
         from celery_tasks.email.tasks import send_email
-        send_email.delay(email,email_code)
-        return Response({"message":"邮箱验证码已发送"})
-
-# 绑定邮箱[校验邮箱验证码]
-from apps.users.serializers import VerifyEmailCodeSerializer
-class VerifyEmailCodeView(GenericAPIView):
-    permission_classes = [IsAuthenticated]
-    serializer_class = VerifyEmailCodeSerializer
+        send_email.delay(email, email_code)
+        return Response({"message": "邮箱验证码已发送"})
+    # 绑定邮箱
     def post(self,request):
         user = request.user
-        serializer = self.get_serializer(instance=user,data=request.data)
+        serializer = CenterVerifyEmailSerializer(instance=user, data=request.data,context={'request':request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({'message':'绑定邮箱成功'})
+        return Response({'message': '绑定邮箱成功'})
