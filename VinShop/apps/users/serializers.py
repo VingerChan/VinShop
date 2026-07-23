@@ -95,4 +95,17 @@ class UserProfileSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         if data.get('user_img'):    # 如果data存在user_img
             data['user_img'] = FDFS_BASE_URL + data['user_img']
+        data['email'] = instance.user.email
         return data
+
+class SendSmsEmailSerializer(serializers.Serializer):
+    sms_code = serializers.CharField()
+    def validate_sms_code(self,value):
+        cache = caches['code']
+        user = self.context.get('request').user
+        redis_email_sms = cache.get(f"email_sms_{user.id}")
+        if not value:
+            raise serializers.ValidationError("短信验证码已过期")
+        if redis_email_sms != value:
+            raise serializers.ValidationError('短信验证码错误')
+        return value

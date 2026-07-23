@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.request import Request
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.generics import CreateAPIView, GenericAPIView
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -8,6 +8,9 @@ from rest_framework import status
 from apps.users.serializers import UserRegisterSerializer,LoginSerializer
 from apps.users.models import User
 from VinShop.settings import FDFS_BASE_URL,FDFS_CLIENT_CONF
+from apps.users.serializers import SendSmsEmailSerializer
+from django.core.cache import caches
+import random
 class RegisterView(CreateAPIView):  #
     queryset = User.objects.all()
     serializer_class = UserRegisterSerializer
@@ -89,3 +92,20 @@ class ProfileView(GenericAPIView,):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+# 绑定邮箱[发送手机短信]
+class SendSmsEmailView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self,request):
+        user = request.user
+        # 查看是否频繁发送短信
+        cache = caches['code']
+        if cache.get(f'email_sms_flag_{user.id}'):
+            return Response({'message':'请不要频繁发送短信'},status=status.HTTP_429_TOO_MANY_REQUESTS)
+        # 发送短信
+        sms_code = f"{random.randint(1000, 9999)}"
+        cache.set(f"email_sms_{user.id}", sms_code, 300)
+        cache.set(f"email_sms_flag_{user.id}", '1', timeout=60)
+        from celery_tasks.sms.tasks import send_sms_code
+        send_sms_code.delay(user.mobile,sms_code)
+        return Response({'message':'短信验证码已发送'})
