@@ -182,3 +182,12 @@ FDFS_CLIENT_CONF={
     'timeout':30,
     'tracker_pool_size':10
 }
+
+# 邮箱配置
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.qq.com'
+EMAIL_PORT = 465
+EMAIL_USE_SSL = True
+EMAIL_USE_TLS = False
+EMAIL_HOST_USER = '2741232639@qq.com'
+EMAIL_HOST_PASSWORD = 'REDACTED'

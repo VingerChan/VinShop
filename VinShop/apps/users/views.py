@@ -109,3 +109,48 @@ class SendSmsEmailView(APIView):
         from celery_tasks.sms.tasks import send_sms_code
         send_sms_code.delay(user.mobile,sms_code)
         return Response({'message':'短信验证码已发送'})
+
+# 绑定邮箱[发送短信验证码]
+from apps.users.serializers import SendSmsEmailSerializer
+class VerifySmsEmailView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = SendSmsEmailSerializer
+    def post(self,request):
+        serializer = self.get_serializer(data=request.data)
+        # 校验数据
+        serializer.is_valid(raise_exception=True)
+        return Response({"message":'身份验证成功'})
+
+# 绑定邮箱[发送邮箱验证码]
+from apps.users.serializers import SendEmailCodeSerializer
+class SendEmailCodeView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = SendEmailCodeSerializer
+    def post(self,request):
+        # 校验数据
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
+        # 检测是否重复发送验证码
+        cache = caches['code']
+        if cache.get(f"email_flag_{request.user.id}"):
+            return Response({'message':'请勿频繁发送'})
+        # 生成邮箱验证码，并存进Redis
+        email_code = f"{random.randint(100000,999999)}"
+        cache.set(f"email_{email}", email_code, 300)
+        cache.set(f"email_flag_{request.user.id}", '1', timeout=60)
+        from celery_tasks.email.tasks import send_email
+        send_email.delay(email,email_code)
+        return Response({"message":"邮箱验证码已发送"})
+
+# 绑定邮箱[校验邮箱验证码]
+from apps.users.serializers import VerifyEmailCodeSerializer
+class VerifyEmailCodeView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = VerifyEmailCodeSerializer
+    def post(self,request):
+        user = request.user
+        serializer = self.get_serializer(instance=user,data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response({'message':'绑定邮箱成功'})

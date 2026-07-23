@@ -108,4 +108,43 @@ class SendSmsEmailSerializer(serializers.Serializer):
             raise serializers.ValidationError("短信验证码已过期")
         if redis_email_sms != value:
             raise serializers.ValidationError('短信验证码错误')
+        cache.set(f"email_sms_passed_{user.id}",'1',600)
+        cache.delete(f"email_sms_{user.id}")
         return value
+
+from apps.users.models import User
+class SendEmailCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    def validate_email(self,value):
+        if User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("该邮箱已经被其他用户绑定")
+        if not re.match(r'[a-z0-9][\w\.\-]*@[a-z0-9\-]+(\.[a-z]{2,5}){1,2}', value):
+            raise serializers.ValidationError("邮箱不符合规格")
+        return value
+    def validate(self,attrs):
+        cache = caches['code']
+        if not cache.get(f"email_sms_passed_{self.context.get('request').user.id}"):
+            raise serializers.ValidationError("请先完成身份验证")
+        return attrs
+
+class VerifyEmailCodeSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    email_code = serializers.CharField()
+    def validate(self,attrs):
+        cache = caches['code']
+        user = self.context.get('request').user
+        cache_code = cache.get(f"email_{attrs['email']}")
+        if not cache.get(f"email_sms_passed_{user.id}"):
+            raise serializers.ValidationError("请先完成身份验证")
+        if not cache_code:
+            raise serializers.ValidationError("邮箱验证码已过期，请重新发送")
+        if attrs['email_code']!=cache_code:
+            raise serializers.ValidationError("邮箱验证码错误")
+        # 如果没有错误，删掉Redis中的验证码
+        cache.delete(f"email_{attrs['email']}")
+        cache.delete(f"email_sms_passed_{user.id}")
+        return attrs
+    def update(self,instance,validated_data):
+        instance.email = validated_data['email']
+        instance.save()
+        return instance
