@@ -73,7 +73,7 @@ class LoginView(GenericAPIView):
 
 from apps.users.serializers import UserProfileSerializer
 # 从左到右，从子类到父类
-class ProfileView(RetrieveUpdateAPIView):
+class ProfileView(GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserProfileSerializer
     # 用户中心获取个人资料
@@ -179,3 +179,14 @@ class CenterEmailView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+# 用户中心[修改密码]
+from apps.users.serializers import CenterPswSerializer
+class CenterChangePswView(APIView):
+    permission_classes = [IsAuthenticated]
+    def patch(self,request):
+        serializer = CenterPswSerializer(instance=request.user,data=request.data,context={'request':request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        # 前端收到200 ok后清除access token 和 refresh token
+        return Response({"message":"密码修改成功"})

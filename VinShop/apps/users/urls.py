@@ -1,5 +1,5 @@
 from django.urls import path
-from apps.users.views import RegisterView,LoginView,ProfileView,CenterVerifySmsView,CenterEmailView,CenterChangeSmsView
+from apps.users.views import RegisterView,LoginView,ProfileView,CenterVerifySmsView,CenterEmailView,CenterChangeSmsView,CenterChangePswView
 from rest_framework_simplejwt.views import TokenRefreshView
 
 urlpatterns = [
@@ -10,4 +10,5 @@ urlpatterns = [
     path('center/sms/',CenterVerifySmsView.as_view()),
     path('center/sms/change/',CenterChangeSmsView.as_view()),
     path('center/email/',CenterEmailView.as_view()),
+    path('center/psw/',CenterChangePswView.as_view()),
 ]

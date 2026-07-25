@@ -36,6 +36,8 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     def validate(self,attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError('两次密码不一致')
+        if not re.match(r'[a-zA-Z0-9]{8,20}', attrs['psw1']):
+            raise serializers.ValidationError("密码不符合规格要求")
         cache = caches['code']
         redis_sms = cache.get(attrs['mobile'])
         if not redis_sms:
@@ -183,5 +185,23 @@ class CenterChangeMobileSerializer(serializers.ModelSerializer):
         cache = caches['code']
         cache.delete(f"sms_{instance.mobile}")
         cache.delete(f"sms_passed_{instance.id}")
+        instance.save()
+        return instance
+
+class CenterPswSerializer(serializers.Serializer):
+    psw1 = serializers.CharField(write_only=True)
+    psw2 = serializers.CharField(write_only=True)
+    def validate(self,attrs):
+        cache = caches['code']
+        # 检查是否通过身份验证
+        if not cache.get(f"sms_passed_{self.context.get('request').user.id}"):
+            raise serializers.ValidationError("请先通过身份验证")
+        if not re.match(r'[a-zA-Z0-9]{8,20}',attrs['psw1']):
+            raise serializers.ValidationError("密码不符合规格要求")
+        if attrs['psw1'] != attrs['psw2']:
+            raise serializers.ValidationError("两次密码不一致")
+        return attrs
+    def update(self,instance,validated_data):
+        instance.set_password(validated_data['psw1'])
         instance.save()
         return instance
