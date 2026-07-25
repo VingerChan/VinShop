@@ -2,7 +2,7 @@ from django.shortcuts import render
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.generics import CreateAPIView, GenericAPIView
+from rest_framework.generics import CreateAPIView, GenericAPIView, RetrieveUpdateAPIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
 from apps.users.serializers import UserRegisterSerializer,LoginSerializer
@@ -73,7 +73,7 @@ class LoginView(GenericAPIView):
 
 from apps.users.serializers import UserProfileSerializer
 # 从左到右，从子类到父类
-class ProfileView(GenericAPIView,):
+class ProfileView(RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = UserProfileSerializer
     # 用户中心获取个人资料
@@ -81,7 +81,7 @@ class ProfileView(GenericAPIView,):
         serializer = self.get_serializer(request.user.profile)
         return Response(serializer.data)
     # 更新个人资料
-    def post(self,request):
+    def patch(self,request):
         user_profile = request.user.profile
         data = request.data.copy()
         if 'user_img' in request.data:
@@ -103,7 +103,7 @@ class ProfileView(GenericAPIView,):
 class CenterVerifySmsView(APIView):
     permission_classes = [IsAuthenticated]
     # 获取手机短信验证码
-    def get(self,request):
+    def post(self,request):
         user = request.user
         # 查看是否频繁发送短信
         cache = caches['code']
@@ -116,7 +116,7 @@ class CenterVerifySmsView(APIView):
         send_sms_code.delay(user.mobile, sms_code)
         return Response({'message': '短信验证码已发送'})
     # 验证身份
-    def post(self,request):
+    def patch(self,request):
         serializer = CenterVerifySmsSerializer(data=request.data,context={'request':request})
         # 校验数据
         serializer.is_valid(raise_exception=True)
@@ -130,7 +130,7 @@ class CenterChangeSmsView(GenericAPIView):
     permission_classes = [IsAuthenticated]
     serializer_class = CenterChangeMobileSerializer
     # 获取验证码
-    def get(self,request):
+    def post(self,request):
         user = request.user
         cache = caches['code']
         mobile = request.query_params.get('mobile')
@@ -145,7 +145,7 @@ class CenterChangeSmsView(GenericAPIView):
         cache.set(f"sms_flag_{mobile}", '1', timeout=60)
         send_sms_code.delay(mobile,sms_code)
         return Response({'message':'短信验证码已发送'})
-    def post(self,request):
+    def patch(self,request):
         # 验证短信验证码并换绑
         user = request.user
         serializer = self.get_serializer(instance=user, data=request.data, context={'request': request})
@@ -157,7 +157,7 @@ class CenterChangeSmsView(GenericAPIView):
 class CenterEmailView(APIView):
     permission_classes = [IsAuthenticated]
     # 获取邮箱验证码
-    def get(self,request):
+    def post(self,request):
         serializer = CenterSendEmailSerializer(data=request.query_params,context={'request':request})
         serializer.is_valid(raise_exception=True)
         email = serializer.validated_data['email']
@@ -173,7 +173,7 @@ class CenterEmailView(APIView):
         send_email.delay(email, email_code)
         return Response({"message": "邮箱验证码已发送"})
     # 绑定邮箱
-    def post(self,request):
+    def patch(self,request):
         user = request.user
         serializer = CenterVerifyEmailSerializer(instance=user, data=request.data,context={'request':request})
         serializer.is_valid(raise_exception=True)

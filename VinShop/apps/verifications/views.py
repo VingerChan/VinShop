@@ -12,7 +12,7 @@ import random
     在APIView中仍以常规的类视图定义方法来实现get()post()或者其他请求方式的方法。
 """
 class CaptchaView(APIView):
-    def get(self,request):
+    def post(self,request):
         # 获取图片验证码文本 以及 带base64编码的图片字符串
         code,b64_str = generate_captcha_base64()
         # 由后端生成是因为防止前端并发撞库
