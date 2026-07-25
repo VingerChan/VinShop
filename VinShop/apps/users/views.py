@@ -10,6 +10,12 @@ from apps.users.models import User
 from VinShop.settings import FDFS_BASE_URL,FDFS_CLIENT_CONF
 from django.core.cache import caches
 import random
+from celery_tasks.sms.tasks import send_sms_code
+import re
+from apps.users.serializers import CenterVerifySmsSerializer
+from apps.users.serializers import CenterChangeMobileSerializer
+from apps.users.serializers import CenterSendEmailSerializer
+from apps.users.serializers import CenterVerifyEmailSerializer
 class RegisterView(CreateAPIView):  #
     queryset = User.objects.all()
     serializer_class = UserRegisterSerializer
@@ -74,6 +80,7 @@ class ProfileView(GenericAPIView,):
     def get(self,request):
         serializer = self.get_serializer(request.user.profile)
         return Response(serializer.data)
+    # 更新个人资料
     def post(self,request):
         user_profile = request.user.profile
         data = request.data.copy()
@@ -92,21 +99,20 @@ class ProfileView(GenericAPIView,):
         serializer.save()
         return Response(serializer.data)
 
-from apps.users.serializers import CenterVerifySmsSerializer
-class CenterSmsView(APIView):
+# 用户中心[身份验证]
+class CenterVerifySmsView(APIView):
     permission_classes = [IsAuthenticated]
     # 获取手机短信验证码
     def get(self,request):
         user = request.user
         # 查看是否频繁发送短信
         cache = caches['code']
-        if cache.get(f'email_sms_flag_{user.id}'):
+        if cache.get(f'sms_flag_{user.id}'):
             return Response({'message': '请不要频繁发送短信'}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         # 发送短信
         sms_code = f"{random.randint(1000, 9999)}"
-        cache.set(f"email_sms_{user.id}", sms_code, 300)
-        cache.set(f"email_sms_flag_{user.id}", '1', timeout=60)
-        from celery_tasks.sms.tasks import send_sms_code
+        cache.set(f"sms_{user.mobile}", sms_code, 300)
+        cache.set(f"sms_flag_{user.id}", '1', timeout=60)
         send_sms_code.delay(user.mobile, sms_code)
         return Response({'message': '短信验证码已发送'})
     # 验证身份
@@ -114,10 +120,40 @@ class CenterSmsView(APIView):
         serializer = CenterVerifySmsSerializer(data=request.data,context={'request':request})
         # 校验数据
         serializer.is_valid(raise_exception=True)
+        cache = caches['code']
+        cache.set(f"sms_passed_{request.user.id}", '1', 600)
+        cache.delete(f"sms_{request.user.mobile}")
         return Response({"message": '身份验证成功'})
 
-from apps.users.serializers import CenterSendEmailSerializer
-from apps.users.serializers import CenterVerifyEmailSerializer
+# 用户中心[更改手机号]
+class CenterChangeSmsView(GenericAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CenterChangeMobileSerializer
+    # 获取验证码
+    def get(self,request):
+        user = request.user
+        cache = caches['code']
+        mobile = request.query_params.get('mobile')
+        # 防止前端传None，给None发送短信
+        if not mobile or not re.match(r'^1[3-9]\d{9}$', mobile):
+            return Response({'message':'请填写正确的手机号'},status=status.HTTP_400_BAD_REQUEST)
+        # 检查是否频繁发送短信
+        if cache.get(f'sms_flag_{mobile}'):
+            return Response({'message':'请勿频繁发送短信'},status=status.HTTP_429_TOO_MANY_REQUESTS)
+        sms_code = f"{random.randint(1000, 9999)}"
+        cache.set(f"sms_{mobile}", sms_code, 300)
+        cache.set(f"sms_flag_{mobile}", '1', timeout=60)
+        send_sms_code.delay(mobile,sms_code)
+        return Response({'message':'短信验证码已发送'})
+    def post(self,request):
+        # 验证短信验证码并换绑
+        user = request.user
+        serializer = self.get_serializer(instance=user, data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+# 用户中心[绑定/换绑邮箱]
 class CenterEmailView(APIView):
     permission_classes = [IsAuthenticated]
     # 获取邮箱验证码
@@ -128,7 +164,7 @@ class CenterEmailView(APIView):
         # 检测是否重复发送验证码
         cache = caches['code']
         if cache.get(f"email_flag_{request.user.id}"):
-            return Response({'message': '请勿频繁发送'})
+            return Response({'message': '请勿频繁发送'},status=status.HTTP_429_TOO_MANY_REQUESTS)
         # 生成邮箱验证码，并存进Redis
         email_code = f"{random.randint(100000, 999999)}"
         cache.set(f"email_{email}", email_code, 300)
@@ -142,4 +178,4 @@ class CenterEmailView(APIView):
         serializer = CenterVerifyEmailSerializer(instance=user, data=request.data,context={'request':request})
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        return Response({'message': '绑定邮箱成功'})
+        return Response(serializer.data)

@@ -103,13 +103,11 @@ class CenterVerifySmsSerializer(serializers.Serializer):
     def validate_sms_code(self,value):
         cache = caches['code']
         user = self.context.get('request').user
-        redis_email_sms = cache.get(f"email_sms_{user.id}")
-        if not value:
+        redis_sms_code = cache.get(f"sms_{user.mobile}")
+        if not redis_sms_code:
             raise serializers.ValidationError("短信验证码已过期")
-        if redis_email_sms != value:
+        if redis_sms_code != value:
             raise serializers.ValidationError('短信验证码错误')
-        cache.set(f"email_sms_passed_{user.id}",'1',600)
-        cache.delete(f"email_sms_{user.id}")
         return value
 
 from apps.users.models import User
@@ -123,13 +121,13 @@ class CenterSendEmailSerializer(serializers.Serializer):
         return value
     def validate(self,attrs):
         cache = caches['code']
-        if not cache.get(f"email_sms_passed_{self.context.get('request').user.id}"):
+        if not cache.get(f"sms_passed_{self.context.get('request').user.id}"):
             raise serializers.ValidationError("请先完成身份验证")
         return attrs
 
 class CenterVerifyEmailSerializer(serializers.Serializer):
     email = serializers.EmailField()
-    email_code = serializers.CharField()
+    email_code = serializers.CharField(write_only=True)
     def validate_email(self,value):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("该邮箱已经被其他用户绑定")
@@ -140,7 +138,7 @@ class CenterVerifyEmailSerializer(serializers.Serializer):
         cache = caches['code']
         user = self.context.get('request').user
         cache_code = cache.get(f"email_{attrs['email']}")
-        if not cache.get(f"email_sms_passed_{user.id}"):
+        if not cache.get(f"sms_passed_{user.id}"):
             raise serializers.ValidationError("请先完成身份验证")
         if not cache_code:
             raise serializers.ValidationError("邮箱验证码已过期，请重新发送")
@@ -153,5 +151,37 @@ class CenterVerifyEmailSerializer(serializers.Serializer):
         # 如果没有错误，删掉Redis中的验证码
         cache = caches['code']
         cache.delete(f"email_{instance.email}")
-        cache.delete(f"email_sms_passed_{instance.id}")
+        cache.delete(f"sms_passed_{instance.id}")
+        return instance
+
+class CenterChangeMobileSerializer(serializers.ModelSerializer):
+    sms_code = serializers.CharField(write_only=True)
+    class Meta:
+        model = User
+        fields = ['mobile','sms_code']
+    def validate_mobile(self,value):
+        # 检验新手机号是否符合规格 或 被别人绑定
+        if not re.match(r'1[345789]\d{9}',value):
+            raise serializers.ValidationError("手机号不符合规格")
+        if User.objects.filter(mobile=value).exists():
+            raise serializers.ValidationError("该手机号已经被绑定")
+        return value
+    def validate(self,attrs):
+        # 检查身份验证
+        cache = caches['code']
+        user = self.context.get('request').user
+        if not cache.get(f"sms_passed_{user.id}"):
+            raise serializers.ValidationError("请先完成身份验证")
+        redis_sms = cache.get(f"sms_{attrs['mobile']}")
+        if not redis_sms:
+            raise serializers.ValidationError("短信验证码过期")
+        if attrs['sms_code']!=redis_sms:
+            raise serializers.ValidationError("短信验证码错误")
+        return attrs
+    def update(self,instance,validated_data):
+        instance.mobile = validated_data['mobile']
+        cache = caches['code']
+        cache.delete(f"sms_{instance.mobile}")
+        cache.delete(f"sms_passed_{instance.id}")
+        instance.save()
         return instance

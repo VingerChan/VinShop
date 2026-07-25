@@ -2,8 +2,10 @@ from uuid import uuid4
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework import status
 from utils.captcha import generate_captcha,generate_captcha_base64
 from django.core.cache import caches
+import random
 """
     APIView继承自View，区别在于
     get是request.get_params() post是request.data
@@ -32,9 +34,8 @@ class SMSCodeView(APIView):
         # 验证短信是否一分钟内发过(防止频繁发送短信)
         cache = caches['code']
         if cache.get(f"sms_flag_{mobile}"):
-            return Response({'message':'请不要频繁发送短信'})
+            return Response({'message':'请不要频繁发送短信'},status=status.HTTP_429_TOO_MANY_REQUESTS)
         # 生成4位随机数字——>短信验证码
-        import random
         sms_code = f"{random.randint(1000,9999)}"
         # 存进redis中
         cache.set(mobile,sms_code,300)
