@@ -1,7 +1,9 @@
 from rest_framework import serializers
-from apps.users.models import User,UserProfile
+from apps.users.models import User,UserProfile,Address
+from apps.areas.models import Area
 import re
 from django.core.cache import caches
+from rest_framework.serializers import ModelSerializer
 from utils.default_nickname import generate_default_nickname
 from django.db import transaction
 from VinShop.settings import FDFS_BASE_URL
@@ -36,7 +38,7 @@ class UserRegisterSerializer(serializers.ModelSerializer):
     def validate(self,attrs):
         if attrs['password'] != attrs['password2']:
             raise serializers.ValidationError('两次密码不一致')
-        if not re.match(r'[a-zA-Z0-9]{8,20}', attrs['psw1']):
+        if not re.match(r'[a-zA-Z0-9]{8,20}', attrs['password']):
             raise serializers.ValidationError("密码不符合规格要求")
         cache = caches['code']
         redis_sms = cache.get(attrs['mobile'])
@@ -205,3 +207,61 @@ class CenterPswSerializer(serializers.Serializer):
         instance.set_password(validated_data['psw1'])
         instance.save()
         return instance
+
+class AddressSerializer(serializers.ModelSerializer):
+    is_default = serializers.BooleanField(required=False,write_only=True)
+    class Meta:
+        model = Address
+        fields = ['id','province','city','district','place','receiver_name','mobile','label','is_default']
+        extra_kwargs = {
+            'label':{'required':False,'allow_blank':True,'allow_null':True},
+            'id':{'read_only':True},
+        }
+    def validate_mobile(self,value):
+        if not re.match(r'1[345789]\d{9}',value):
+            raise serializers.ValidationError("手机号码格式不正确")
+        return value
+    def validate_label(self,value):
+        if value and len(value) > 4:
+            raise serializers.ValidationError("标签不能超过4个字")
+        return value
+    def validate(self,attrs):
+        # PATCH是部分更新，如果省市区只传其中之一，那么就不能参与校验
+        province = attrs.get('province',self.instance.province if self.instance else None)
+        city = attrs.get('city',self.instance.city if self.instance else None)
+        district = attrs.get('district',self.instance.district if self.instance else None)
+        if province and city and district:
+            if province.parent_id is not None:
+                raise serializers.ValidationError("省无效")
+            if city.parent_id != province.id:
+                raise serializers.ValidationError("市与省不匹配")
+            if district.parent_id != city.id:
+                raise serializers.ValidationError("区与市不匹配")
+        # 跳过更新场景，否则每次编辑地址都会检查数量，徒增一次查询
+        if self.instance is None:
+            user = self.context.get('request').user
+            if user.address.count() >= 20:
+                raise serializers.ValidationError('地址数量已达上限')
+        return attrs
+    def create(self,validated_data):
+        is_default = validated_data.pop('is_default',None)
+        user = self.context.get('request').user
+        validated_data['user'] = user
+        address = super().create(validated_data)
+        # 如果设置了默认地址
+        if is_default is True:
+            user.default_address = address
+            user.save(update_fields=['default_address'])
+        return address
+    def update(self,instance,validated_data):
+        is_default = validated_data.pop('is_default',None)
+        address = super().update(instance,validated_data)
+        user = self.context.get('request').user
+        if is_default is True:
+            user.default_address = address
+            user.save(update_fields=['default_address'])
+        # 取消默认地址
+        elif is_default is False and user.default_address == address:
+            user.default_address = None
+            user.save(update_fields=['default_address'])
+        return address

@@ -1,21 +1,18 @@
 from django.shortcuts import render
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
+from rest_framework.viewsets import ModelViewSet
 from rest_framework.response import Response
 from rest_framework.generics import CreateAPIView, GenericAPIView, RetrieveUpdateAPIView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework import status
-from apps.users.serializers import UserRegisterSerializer,LoginSerializer
-from apps.users.models import User
+from apps.users.serializers import UserRegisterSerializer,LoginSerializer,CenterVerifySmsSerializer,CenterChangeMobileSerializer,CenterSendEmailSerializer,CenterVerifyEmailSerializer,AddressSerializer
+from apps.users.models import User,Address
 from VinShop.settings import FDFS_BASE_URL,FDFS_CLIENT_CONF
 from django.core.cache import caches
 import random
 from celery_tasks.sms.tasks import send_sms_code
 import re
-from apps.users.serializers import CenterVerifySmsSerializer
-from apps.users.serializers import CenterChangeMobileSerializer
-from apps.users.serializers import CenterSendEmailSerializer
-from apps.users.serializers import CenterVerifyEmailSerializer
 class RegisterView(CreateAPIView):  #
     queryset = User.objects.all()
     serializer_class = UserRegisterSerializer
@@ -190,3 +187,20 @@ class CenterChangePswView(APIView):
         serializer.save()
         # 前端收到200 ok后清除access token 和 refresh token
         return Response({"message":"密码修改成功"})
+
+class AddressViewSet(ModelViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = AddressSerializer
+    def get_queryset(self):
+        # 每个地址各查 province / city / district
+        # 使用select_related变成1次JOIN查完
+        return Address.objects.filter(user=self.request.user).select_related('province','city','district')
+    def list(self,request,*args,**kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        serializer = self.get_serializer(queryset, many=True)
+        default_address = request.user.default_address
+        # 前端根据后端返回的default_address来辨别默认地址并置顶
+        return Response({
+            'address': serializer.data,
+            'default_address': default_address.id if default_address else None,
+        })
