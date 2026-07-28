@@ -41,3 +41,94 @@ class GoodsChannel(BaseModel):
         ]
     def __str__(self):
         return self.category.name
+
+# SPU的品牌
+class Brand(BaseModel):
+    name = models.CharField(max_length=20,verbose_name='品牌名')
+    logo = models.CharField(max_length=200,verbose_name='Logo图片')
+    class Meta:
+        db_table = 'tb_brand'
+        verbose_name = '品牌'
+        verbose_name_plural = verbose_name
+    def __str__(self):
+        return self.name
+
+# 商品主体
+class SPU(BaseModel):
+    name = models.CharField(max_length=20,verbose_name='SPU名称')
+    brand = models.ForeignKey(Brand,on_delete=models.PROTECT,verbose_name='品牌')
+    category = models.ForeignKey(GoodsCategory,on_delete=models.CASCADE,verbose_name='分类')
+    desc = models.TextField(verbose_name='商品介绍',default='')
+    # 等所有模型都加载完了，再去找真正的 SKU 表
+    default_sku = models.ForeignKey('SKU',on_delete=models.SET_NULL,null=True,blank=True,verbose_name='默认SKU',related_name='+')
+    class Meta:
+        db_table = 'tb_spu'
+        verbose_name = 'SPU'
+        verbose_name_plural = verbose_name
+    def __str__(self):
+        return self.name
+
+class SKU(BaseModel):
+    name = models.CharField(max_length=50,verbose_name='SKU名称')
+    spu = models.ForeignKey(SPU,on_delete=models.CASCADE,related_name='skus',verbose_name='所属SPU')
+    price = models.DecimalField(max_digits=10,decimal_places=2,verbose_name='售价')
+    stock = models.IntegerField(default=0,verbose_name='库存')
+    # 商品展示的图片
+    default_image = models.CharField(max_length=200,verbose_name='默认图片')
+    sales = models.IntegerField(default=0,verbose_name='销量')
+    comments = models.IntegerField(default=0,verbose_name='评论数')
+    is_launched = models.BooleanField(default=True,verbose_name='是否上架销售')
+    class Meta:
+        db_table = 'tb_sku'
+        verbose_name = 'SKU'
+        verbose_name_plural = verbose_name
+    def __str__(self):
+        return self.name
+
+# SPU规格，每个SPU具有哪种规格
+class SPUSpec(BaseModel):
+    name = models.CharField(max_length=20,verbose_name='规格名')
+    spu = models.ForeignKey(SPU,on_delete=models.CASCADE,related_name='specs',verbose_name='所属SPU')
+    class Meta:
+        db_table = 'tb_spu_spec'
+        verbose_name = 'SPU规格'
+        verbose_name_plural = verbose_name
+    def __str__(self):
+        return f'{self.spu.name} - {self.name}'
+
+# SPU规格选项
+class SpecOption(BaseModel):
+    value = models.CharField(max_length=20,verbose_name='规格值')
+    sequence = models.IntegerField(verbose_name='顺序')
+    spec = models.ForeignKey(SPUSpec,on_delete=models.CASCADE,related_name='options',verbose_name='所属规格')
+    class Meta:
+        db_table = 'tb_spec_option'
+        verbose_name = '规格选项'
+        verbose_name_plural = verbose_name
+        # 从小到大
+        ordering = ['sequence']
+        constraints = [
+            models.UniqueConstraint(
+                fields = ['spec','sequence'],
+                name = 'unique_spec_option',
+            )
+        ]
+    def __str__(self):
+        return self.value
+
+# SKU规格
+class SKUSpec(BaseModel):
+    option = models.ForeignKey(SpecOption,on_delete=models.PROTECT,verbose_name='规格选项')
+    sku = models.ForeignKey(SKU,on_delete=models.CASCADE,related_name='specs',verbose_name='SKU')
+    class Meta:
+        db_table = 'tb_sku_spec'
+        verbose_name = 'SKU规格'
+        verbose_name_plural = verbose_name
+        constraints = [
+            models.UniqueConstraint(
+                fields = ['option','sku'],
+                name = 'unique_sku_spec',
+            )
+        ]
+    def __str__(self):
+        return f'{self.sku.name} - {self.option.value}'
