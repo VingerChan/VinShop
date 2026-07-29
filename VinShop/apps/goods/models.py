@@ -132,3 +132,36 @@ class SKUSpec(BaseModel):
         ]
     def __str__(self):
         return f'{self.sku.name} - {self.option.value}'
+
+# 广告位分类
+class ContentCategory(BaseModel):
+    name = models.CharField(max_length=20,verbose_name='广告位名称')
+    key = models.CharField(max_length=50,verbose_name='唯一标识')
+    class Meta:
+        db_table = 'tb_content_category'
+        verbose_name = '广告位'
+        verbose_name_plural = verbose_name
+    def __str__(self):
+        return self.name
+
+# 具体广告内容
+class Content(BaseModel):
+    category = models.ForeignKey(ContentCategory,on_delete=models.CASCADE,related_name='contents',verbose_name='所属广告位')
+    title = models.CharField(max_length=50,verbose_name='广告标题')
+    image = models.CharField(max_length=200,verbose_name='图片')
+    link = models.CharField(max_length=200,verbose_name='跳转链接')
+    sequence = models.IntegerField(verbose_name='排序')
+    is_active = models.BooleanField(default=True,verbose_name='是否启用')
+    class Meta:
+        db_table = 'tb_content'
+        verbose_name = '广告内容'
+        verbose_name_plural = verbose_name
+        ordering = ['sequence']
+        constraints = [
+            models.UniqueConstraint(
+                fields = ['category','sequence'],
+                name = 'unique_category_content',
+            )
+        ]
+    def __str__(self):
+        return self.title
