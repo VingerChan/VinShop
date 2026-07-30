@@ -1,7 +1,6 @@
 from rest_framework import serializers
-from apps.goods.models import GoodsCategory,GoodsChannel
-
-from VinShop.apps.goods.models import GoodsChannelGroup
+from apps.goods.models import GoodsCategory,GoodsChannel,Content
+from VinShop.settings import FDFS_BASE_URL
 
 
 # 只返回id和name，用于嵌套在频道下的子分类列表
@@ -36,3 +35,11 @@ class GoodsChannelGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = GoodsChannelGroup
         fields = ['id','name','channels']
+
+class ContentSerializer(serializers.ModelSerializer):
+    img_url = serializers.SerializerMethodField()
+    class Meta:
+        model = Content
+        fields = ['id','title','img_url','link']
+    def get_img_url(self, obj):
+        return FDFS_BASE_URL + obj.img_url
