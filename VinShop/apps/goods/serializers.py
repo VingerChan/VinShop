@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.goods.models import GoodsCategory,GoodsChannel,Content
+from apps.goods.models import GoodsCategory,GoodsChannel,Content,GoodsChannelGroup
 from VinShop.settings import FDFS_BASE_URL
 
 
@@ -25,8 +25,9 @@ class GoodsChannelSerializer(serializers.ModelSerializer):
     class Meta:
         model = GoodsChannel
         fields = ['id','sequence','category_id','category_name','sub_category']
+    # 因为ModelSerializer，DRF在序列化GoodsChannel的query/instance时，会自动把对应的model instance作为obj传入
     def get_sub_category(self, obj):
-        children = obj.subs.all()
+        children = obj.category.subs.all()
         return SubCategorySerializer(children, many=True).data
 
 class GoodsChannelGroupSerializer(serializers.ModelSerializer):
@@ -42,4 +43,4 @@ class ContentSerializer(serializers.ModelSerializer):
         model = Content
         fields = ['id','title','img_url','link']
     def get_img_url(self, obj):
-        return FDFS_BASE_URL + obj.img_url
+        return FDFS_BASE_URL + obj.image.url

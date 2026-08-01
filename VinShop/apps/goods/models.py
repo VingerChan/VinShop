@@ -1,5 +1,6 @@
 from django.db import models
 from utils.models import BaseModel
+from utils.storage import FastDFSStorage
 # 目录
 class GoodsCategory(BaseModel):
     name = models.CharField(max_length=10,verbose_name='名称')
@@ -24,7 +25,7 @@ class GoodsChannelGroup(BaseModel):
 class GoodsChannel(BaseModel):
     group = models.ForeignKey(GoodsChannelGroup,on_delete=models.CASCADE,verbose_name='频道组')
     category = models.ForeignKey(GoodsCategory,on_delete=models.CASCADE,verbose_name='一级目录商品类别')
-    sequence = models.IntegerField(verbose_name='组内顺序')
+    sequence = models.IntegerField(default=0,verbose_name='组内顺序')
     class Meta:
         db_table = 'tb_goods_channel'
         verbose_name = '商品频道'
@@ -45,7 +46,8 @@ class GoodsChannel(BaseModel):
 # SPU的品牌
 class Brand(BaseModel):
     name = models.CharField(max_length=20,verbose_name='品牌名')
-    logo = models.CharField(max_length=200,verbose_name='Logo图片')
+    # upload_to决定 文件上传后的相对路径 storage决定存储系统
+    logo = models.ImageField(upload_to='',storage=FastDFSStorage(),max_length=200,verbose_name='Logo图片')
     class Meta:
         db_table = 'tb_brand'
         verbose_name = '品牌'
@@ -74,7 +76,7 @@ class SKU(BaseModel):
     price = models.DecimalField(max_digits=10,decimal_places=2,verbose_name='售价')
     stock = models.IntegerField(default=0,verbose_name='库存')
     # 商品展示的图片
-    default_image = models.CharField(max_length=200,verbose_name='默认图片')
+    default_image = models.ForeignKey('SKUImage',on_delete=models.SET_NULL,null=True,blank=True,related_name='+',verbose_name='默认展示图')
     sales = models.IntegerField(default=0,verbose_name='销量')
     comments = models.IntegerField(default=0,verbose_name='评论数')
     is_launched = models.BooleanField(default=True,verbose_name='是否上架销售')
@@ -84,6 +86,25 @@ class SKU(BaseModel):
         verbose_name_plural = verbose_name
     def __str__(self):
         return self.name
+
+# SKU商品 图片
+class SKUImage(BaseModel):
+    sku = models.ForeignKey(SKU,on_delete=models.CASCADE,verbose_name='所属SKU',related_name='images')
+    img = models.ImageField(upload_to='',storage=FastDFSStorage(),max_length=200,verbose_name='图片')
+    sequence = models.IntegerField(default=0,verbose_name='图片顺序')
+    class Meta:
+        db_table = 'tb_sku_image'
+        verbose_name = 'SKU图片'
+        verbose_name_plural = verbose_name
+        ordering = ['sequence']
+        constraints = [
+            models.UniqueConstraint(
+                fields = ['sku','sequence'],
+                name = 'unique_sku_image',
+            )
+        ]
+    def __str__(self):
+        return f"{self.sku.name} - {self.sku.id}"
 
 # SPU规格，每个SPU具有哪种规格
 class SPUSpec(BaseModel):
@@ -99,7 +120,7 @@ class SPUSpec(BaseModel):
 # SPU规格选项
 class SpecOption(BaseModel):
     value = models.CharField(max_length=20,verbose_name='规格值')
-    sequence = models.IntegerField(verbose_name='顺序')
+    sequence = models.IntegerField(default=0,verbose_name='顺序')
     spec = models.ForeignKey(SPUSpec,on_delete=models.CASCADE,related_name='options',verbose_name='所属规格')
     class Meta:
         db_table = 'tb_spec_option'
@@ -114,7 +135,7 @@ class SpecOption(BaseModel):
             )
         ]
     def __str__(self):
-        return self.value
+        return f"{self.spec.spu.name} - {self.spec.name} - {self.value}"
 
 # SKU规格
 class SKUSpec(BaseModel):
@@ -148,9 +169,9 @@ class ContentCategory(BaseModel):
 class Content(BaseModel):
     category = models.ForeignKey(ContentCategory,on_delete=models.CASCADE,related_name='contents',verbose_name='所属广告位')
     title = models.CharField(max_length=50,verbose_name='广告标题')
-    image = models.CharField(max_length=200,verbose_name='图片')
+    image = models.ImageField(upload_to='',storage=FastDFSStorage(),max_length=200,verbose_name='图片')
     link = models.CharField(max_length=200,verbose_name='跳转链接')
-    sequence = models.IntegerField(verbose_name='排序')
+    sequence = models.IntegerField(default=0,verbose_name='排序')
     is_active = models.BooleanField(default=True,verbose_name='是否启用')
     class Meta:
         db_table = 'tb_content'
