@@ -71,7 +71,7 @@ class SPU(BaseModel):
         return self.name
 
 class SKU(BaseModel):
-    name = models.CharField(max_length=50,verbose_name='SKU名称')
+    name = models.CharField(max_length=100,verbose_name='SKU名称')
     spu = models.ForeignKey(SPU,on_delete=models.CASCADE,related_name='skus',verbose_name='所属SPU')
     price = models.DecimalField(max_digits=10,decimal_places=2,verbose_name='售价')
     stock = models.IntegerField(default=0,verbose_name='库存')
@@ -119,7 +119,7 @@ class SPUSpec(BaseModel):
 
 # SPU规格选项
 class SpecOption(BaseModel):
-    value = models.CharField(max_length=20,verbose_name='规格值')
+    value = models.CharField(max_length=30,verbose_name='规格值')
     sequence = models.IntegerField(default=0,verbose_name='顺序')
     spec = models.ForeignKey(SPUSpec,on_delete=models.CASCADE,related_name='options',verbose_name='所属规格')
     class Meta:

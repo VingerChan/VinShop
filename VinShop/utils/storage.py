@@ -37,9 +37,9 @@ class FastDFSStorage(Storage):
             return
         from fdfs_client.client import Fdfs_client
         try:
-            Fdfs_client(FDFS_CLIENT_CONF).delete_file(name)
+            Fdfs_client(FDFS_CLIENT_CONF).delete_file(name.encode())
         # delete_file()内部会抛DataError('Error:2,No such file...')
         # 这里把 文件不存在 当成功处理
         except DataError as e:
-            if 'No such file' in str(e):
+            if 'No such file' not in str(e):
                 raise
