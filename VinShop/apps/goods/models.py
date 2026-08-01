@@ -76,7 +76,7 @@ class SKU(BaseModel):
     price = models.DecimalField(max_digits=10,decimal_places=2,verbose_name='售价')
     stock = models.IntegerField(default=0,verbose_name='库存')
     # 商品展示的图片
-    default_image = models.ForeignKey('SKUImage',on_delete=models.SET_NULL,null=True,blank=True,related_name='+',verbose_name='默认展示图')
+    default_image = models.ImageField(upload_to='',storage=FastDFSStorage(),max_length=200,null=True,blank=False,verbose_name='默认展示图')
     sales = models.IntegerField(default=0,verbose_name='销量')
     comments = models.IntegerField(default=0,verbose_name='评论数')
     is_launched = models.BooleanField(default=True,verbose_name='是否上架销售')
