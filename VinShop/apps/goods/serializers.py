@@ -44,3 +44,15 @@ class ContentSerializer(serializers.ModelSerializer):
         fields = ['id','title','img_url','link']
     def get_img_url(self, obj):
         return FDFS_BASE_URL + obj.image.url
+
+class HomePageSerializer(serializers.Serializer):
+    groups = GoodsChannelGroupSerializer(many=True)
+    contents = serializers.SerializerMethodField()
+    # 普通的Serializer，没有绑定的model，所以obj完全由调用方决定，传dict，就是dict
+    def get_contents(self, obj):
+        categories = obj['content_categories']
+        result = {}
+        for cat in categories:
+            active_content = cat.contents.filter(is_active=True)
+            result[cat.key] = ContentSerializer(active_content, many=True).data
+        return result
