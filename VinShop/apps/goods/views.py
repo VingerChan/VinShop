@@ -2,8 +2,9 @@ from django.db.models import Prefetch
 from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from apps.goods.serializers import HomePageSerializer
+from apps.goods.serializers import HomePageSerializer,SKUSerializer
 from apps.goods.models import GoodsChannelGroup,GoodsChannel,ContentCategory
+from utils.recommend import get_popular_skus
 
 class HomePageView(APIView):
     def get(self,request):
@@ -22,4 +23,10 @@ class HomePageView(APIView):
             'groups' : groups,
             'content_categories' : contents,
         })
+        return Response(serializer.data)
+
+class RecommendView(APIView):
+    def get(self,request):
+        skus = get_popular_skus()
+        serializer = SKUSerializer(skus, many=True)
         return Response(serializer.data)

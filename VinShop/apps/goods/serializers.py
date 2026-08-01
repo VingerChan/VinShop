@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.goods.models import GoodsCategory,GoodsChannel,Content,GoodsChannelGroup
+from apps.goods.models import GoodsCategory,GoodsChannel,Content,GoodsChannelGroup,SKU
 from VinShop.settings import FDFS_BASE_URL
 
 
@@ -56,3 +56,13 @@ class HomePageSerializer(serializers.Serializer):
             active_content = cat.contents.filter(is_active=True)
             result[cat.key] = ContentSerializer(active_content, many=True).data
         return result
+
+class SKUSerializer(serializers.ModelSerializer):
+    default_img_url = serializers.SerializerMethodField()
+    class Meta:
+        model = SKU
+        fields = ['id','name','price','default_img_url','sales']
+    def get_default_img_url(self, obj):
+        if obj.default_image:
+            return obj.default_image.url
+        return ''
