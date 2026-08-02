@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 from django.conf.global_settings import AUTH_USER_MODEL
@@ -18,12 +19,26 @@ AUTH_USER_MODEL = 'users.User'   # 重写登陆通过这个模型
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# 读取项目根目录的 .env（不进 git），把其中的键值注入 os.environ
+def _load_env():
+    env_file = BASE_DIR / '.env'
+    if not env_file.exists():
+        return
+    for line in env_file.read_text(encoding='utf-8').splitlines():
+        line = line.strip()
+        if not line or line.startswith('#') or '=' not in line:
+            continue
+        key, _, value = line.partition('=')
+        os.environ.setdefault(key.strip(), value.strip())
+
+_load_env()
+
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'REDACTED'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', '')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -86,7 +101,7 @@ DATABASES = {
         'HOST': 'localhost',
         'PORT': 3306,
         'USER': 'root',
-        'PASSWORD': 'REDACTED',
+        'PASSWORD': os.environ.get('MYSQL_PASSWORD', ''),
         'NAME': 'VinShop',
     }
 }
@@ -154,9 +169,9 @@ SIMPLE_JWT = {
 }
 
 # 容联云API设置
-RONGLIAN_ACC_ID = 'REDACTED'
-RONGLIAN_ACC_TOKEN = 'REDACTED'
-RONGLIAN_APP_ID = 'REDACTED'
+RONGLIAN_ACC_ID = os.environ.get('RONGLIAN_ACC_ID', '')
+RONGLIAN_ACC_TOKEN = os.environ.get('RONGLIAN_ACC_TOKEN', '')
+RONGLIAN_APP_ID = os.environ.get('RONGLIAN_APP_ID', '')
 RONGLIAN_SMS_TEMPLATE_ID = '1'
 
 # Django Cache
@@ -191,8 +206,8 @@ EMAIL_HOST = 'smtp.qq.com'
 EMAIL_PORT = 465
 EMAIL_USE_SSL = True
 EMAIL_USE_TLS = False
-EMAIL_HOST_USER = '2741232639@qq.com'
-EMAIL_HOST_PASSWORD = 'REDACTED'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '2741232639@qq.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 
 # 推荐商品限制个数
 POPULAR_POOL = 50
