@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from apps.goods.models import GoodsCategory,GoodsChannel,Content,GoodsChannelGroup,SKU
+from apps.goods.models import GoodsCategory,GoodsChannel,Content,GoodsChannelGroup,SKU,SPU,SKUSpec
 from VinShop.settings import FDFS_BASE_URL
 
 
@@ -66,3 +66,51 @@ class SKUSerializer(serializers.ModelSerializer):
         if obj.default_image:
             return obj.default_image.url
         return ''
+
+class SPUDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SPU
+        fields = ['id','name','desc']
+
+class SKUDetailSerializer(serializers.ModelSerializer):
+    default_image = serializers.SerializerMethodField()     # 默认展示图片
+    images = serializers.SerializerMethodField()            # SKU图片
+    spu = SPUDetailSerializer()
+    specs = serializers.SerializerMethodField()
+    class Meta:
+        model = SKU
+        fields = ['id','name','price','stock','sales','comments','default_image','images','spu','specs']
+    def get_default_image(self, obj):
+        if obj.default_image:
+            return obj.default_image.url
+        return ''
+    def get_images(self, obj):
+        return [image.img.url for image in obj.images.all()]
+    def get_specs(self, obj):
+        spu = obj.spu
+        # 获取该SPU的所有SKU
+        skus = spu.skus.filter(is_launched=True)
+        # 查SPU所有规格选项
+        spec_skus = SKUSpec.objects.filter(sku__in=skus)
+        spec_skus_dict = {}
+        for spec_sku in spec_skus:
+            # 以 option_id 为 key，把对应的 sku_id 收集到一个列表中
+            # 如果key不存在，则先创建一个空列表[]
+            # 最终得出 option_id : [sku1,sku2]
+            spec_skus_dict.setdefault(spec_sku.option_id,[]).append(spec_sku.sku_id)
+        # SPU.specs.options.all()
+        # 获取该SPU的所有规格
+        specs = spu.specs.prefetch_related('options')
+        spec_data = []
+        # 假设该SPU有3个规格，一个一个遍历
+        for spec in specs:
+            options = []
+            # 读某规格SPUSpec的所有规格选项option
+            for option in spec.options.all():   # 读prefetch缓存
+                options.append({
+                    'option_id' : option.id,
+                    'value' : option.value,
+                    'skus' : spec_skus_dict.get(option.id,[])
+                })
+            spec_data.append({'name':spec.name,'options':options})
+        return spec_data

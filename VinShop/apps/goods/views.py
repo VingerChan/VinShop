@@ -1,9 +1,9 @@
 from django.db.models import Prefetch
-from django.shortcuts import render
+from django.shortcuts import render,get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from apps.goods.serializers import HomePageSerializer,SKUSerializer
-from apps.goods.models import GoodsChannelGroup,GoodsChannel,ContentCategory
+from apps.goods.serializers import HomePageSerializer,SKUSerializer,SKUDetailSerializer
+from apps.goods.models import GoodsChannelGroup,GoodsChannel,ContentCategory,SKU
 from utils.recommend import get_popular_skus
 
 class HomePageView(APIView):
@@ -29,4 +29,12 @@ class RecommendView(APIView):
     def get(self,request):
         skus = get_popular_skus()
         serializer = SKUSerializer(skus, many=True)
+        return Response(serializer.data)
+
+class SKUDetailView(APIView):
+    def get(self,request,sku_id):
+        # 先join把SKU和SPU放在同一张表，再反向查询SKU的所有image
+        # sku = get_object_or_404(SKU,id=sku_id)
+        sku = get_object_or_404(SKU.objects.select_related('spu').prefetch_related('images').filter(is_launched=True), id=sku_id)
+        serializer = SKUDetailSerializer(sku)
         return Response(serializer.data)
