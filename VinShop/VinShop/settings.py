@@ -189,6 +189,13 @@ CACHES = {
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
+    },
+    'history' : {
+        'BACKEND':'django_redis.cache.RedisCache',
+        'LOCATION':'redis://127.0.0.1:6379/2',
+        'OPTIONS': {
+            'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
     }
 }
 
@@ -217,3 +224,7 @@ POPULAR_LIMIT = 15
 ES_HOST = 'http://localhost:9200'
 # 索引名，全项目统一从这里取，避免到处写死字符串。索引名全小写是ES硬性要求
 ES_SKU_INDEX = 'sku'
+
+# 浏览记录
+BROWSING_DAYS = 7       # 只保留近七天
+BROWSING_LIMIT = 200    # 单个用户最多保留200条
