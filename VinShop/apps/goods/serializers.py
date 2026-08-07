@@ -61,7 +61,7 @@ class SKUSerializer(serializers.ModelSerializer):
     default_img_url = serializers.SerializerMethodField()
     class Meta:
         model = SKU
-        fields = ['id','name','price','default_img_url','sales']
+        fields = ['id','name','price','comments','default_img_url','sales']
     def get_default_img_url(self, obj):
         if obj.default_image:
             return obj.default_image.url

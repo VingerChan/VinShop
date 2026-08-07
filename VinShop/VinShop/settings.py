@@ -212,3 +212,8 @@ EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
 # 推荐商品限制个数
 POPULAR_POOL = 50
 POPULAR_LIMIT = 15
+
+# ElasticSearch 商品搜索
+ES_HOST = 'http://localhost:9200'
+# 索引名，全项目统一从这里取，避免到处写死字符串。索引名全小写是ES硬性要求
+ES_SKU_INDEX = 'sku'

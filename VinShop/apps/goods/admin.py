@@ -12,6 +12,8 @@ class SPUAdmin(admin.ModelAdmin):
             if spu_id:
                 # 默认就是这个外键的全表查询集
                 kwargs['queryset'] = SKU.objects.filter(spu_id=spu_id)
+        if db_field.name == 'category':
+            kwargs['queryset'] = GoodsCategory.objects.filter(subs__isnull=True)
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
 class SKUAdmin(admin.ModelAdmin):

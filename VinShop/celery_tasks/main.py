@@ -16,4 +16,4 @@ app = Celery('celery_tasks')
 app.config_from_object('celery_tasks.config')
 
 # 4.Celery自动检测指定包的任务
-app.autodiscover_tasks(['celery_tasks.sms.tasks','celery_tasks.email.tasks'])
+app.autodiscover_tasks(['celery_tasks.sms.tasks','celery_tasks.email.tasks','celery_tasks.search.tasks'])
