@@ -1,11 +1,15 @@
 from django.conf import settings
 from django_redis import get_redis_connection
 import time
+
+def _key(user_id):
+    return f"history_{user_id}"
+
 # 添加浏览记录
 def add(user_id,sku_id):
     # 连接redis 的history库
     redis_conn = get_redis_connection('history')
-    key = f"history_{user_id}"
+    key = _key(user_id)
     # 从 1970-01-01 00:00:00 UTC 到现在已经过了 多少 s
     now:float = time.time()
     # 写入：score = 当前时间辍
@@ -20,7 +24,7 @@ def add(user_id,sku_id):
 # 获取浏览记录
 def recent(user_id):
     redis_conn = get_redis_connection('history')
-    key = f"history_{user_id}"
+    key = _key(user_id)
     # 读取前再兜底 清理时间超过7天以上的 数据
     redis_conn.zremrangebyscore(key,0,time.time()-settings.BROWSING_DAYS*86400)
     # zrange:score从低到高排序 zrevrange:score从高到低
@@ -28,3 +32,16 @@ def recent(user_id):
     browse = redis_conn.zrevrange(key,0,-1,withscores=True)
     # redis里的sku_id是byte类型 需要转int
     return [(int(sku_id),int(timestamp)) for sku_id,timestamp in browse]
+
+# 一次性删除 所有 浏览记录
+def clear(user_id):
+    key = _key(user_id)
+    redis_conn = get_redis_connection('history')
+    redis_conn.delete(key)
+
+# 删除单个 浏览记录
+def remove(user_id,sku_id):
+    key = _key(user_id)
+    redis_conn = get_redis_connection('history')
+    # 删除有序集合中的指定元素（member）
+    redis_conn.zrem(key,sku_id)

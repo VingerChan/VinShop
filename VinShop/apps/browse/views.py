@@ -1,5 +1,6 @@
 from datetime import datetime
 from django.utils import timezone
+from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -30,4 +31,12 @@ class BrowseHistoryView(APIView):
             {'date':day,'skus':SKUSerializer(skus,many=True).data}
         for day,skus in group.items()])
 
+    def delete(self,request,sku_id=None):
+        # 删除用户 所有浏览记录
+        if sku_id is None:
+            browse.clear(request.user.id)
+        # 删除用户 单个浏览记录
+        else:
+            browse.remove(request.user.id,sku_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
