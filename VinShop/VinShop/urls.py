@@ -24,4 +24,5 @@ urlpatterns = [
     path('',include('apps.areas.urls')),
     path('',include('apps.goods.urls')),
     path('',include('apps.browse.urls')),
+    path('',include('apps.carts.urls')),
 ]
