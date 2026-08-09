@@ -30,3 +30,6 @@ class CartItemSerializer(serializers.Serializer):
     count = serializers.IntegerField()
     selected = serializers.BooleanField()
     amount = serializers.DecimalField(max_digits=10,decimal_places=2)
+
+class SelectAllSerializer(serializers.Serializer):
+    selected = serializers.BooleanField()

@@ -37,3 +37,18 @@ def get_selected(user_id):
     redis_conn = get_redis_connection('carts')
     # Set : {1,2,3,4,5}
     return {int(sku_id) for sku_id in redis_conn.smembers(_selected_key(user_id))}
+
+def select_all(user_id,selected):
+    redis_conn = get_redis_connection('carts')
+    selected_key = _selected_key(user_id)
+    # 如果全选 selected=True
+    if selected:
+        # 取出Redis Hash的key，不包括field 和 value
+        sku_ids = redis_conn.hkeys(_key(user_id))
+        # 先清空 再 批量加入
+        redis_conn.delete(selected_key)
+        if sku_ids:
+            redis_conn.sadd(selected_key,*sku_ids)
+
+    else:
+        redis_conn.delete(selected_key)

@@ -2,7 +2,7 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from apps.carts.serializers import CartSerializer,CartItemSerializer
+from apps.carts.serializers import CartSerializer,CartItemSerializer,SelectAllSerializer
 from apps.goods.models import SKU
 from utils import carts
 from decimal import Decimal
@@ -53,3 +53,14 @@ class CartView(APIView):
             })
         serializer = CartItemSerializer(cart_list,many=True)
         return Response({'cart_count':cart_count,'total_selected':total_selected,'total_amount':total_amount,'cart':cart_list})
+
+# 全选 / 取消全选
+class CartSelectAllView(APIView):
+    permission_classes = [IsAuthenticated]
+    def put(self,request):
+        serializer = SelectAllSerializer(data=request.data,context={'request': request})
+        # 校验是否传了selected 以及 selected是否为True/False
+        serializer.is_valid(raise_exception=True)
+        # 接收前端发送的 是否全选(True/False)来判断
+        carts.select_all(request.user.id,serializer.validated_data['selected'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
