@@ -52,3 +52,16 @@ def select_all(user_id,selected):
 
     else:
         redis_conn.delete(selected_key)
+
+def select(user_id,sku_id,selected):
+    redis_conn = get_redis_connection('carts')
+    if selected:
+        redis_conn.sadd(_selected_key(user_id),sku_id)
+    else:
+        redis_conn.srem(_selected_key(user_id),sku_id)
+
+# 判断商品是否在 用户购物车中
+def exists(user_id,sku_id):
+    redis_conn = get_redis_connection('carts')
+    # 返回 1/0 1：field存在
+    return redis_conn.hexists(_key(user_id),sku_id)

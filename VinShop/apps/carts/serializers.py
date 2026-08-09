@@ -40,3 +40,12 @@ class CartItemSerializer(serializers.ModelSerializer):
 
 class SelectAllSerializer(serializers.Serializer):
     selected = serializers.BooleanField()
+
+class CartItemSelectSerializer(serializers.Serializer):
+    selected = serializers.BooleanField()
+    def validate(self,attrs):
+        sku_id = self.context['sku_id']
+        user_id = self.context['request'].user.id
+        if not carts.exists(user_id,sku_id):
+            raise serializers.ValidationError('商品不在购物车中')
+        return attrs
