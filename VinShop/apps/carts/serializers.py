@@ -20,3 +20,13 @@ class CartSerializer(serializers.Serializer):
         if cart.get(sku.id,0)+attrs['count'] > sku.stock:
             raise serializers.ValidationError('商品库存不足')
         return attrs
+
+class CartItemSerializer(serializers.Serializer):
+    sku_id = serializers.IntegerField()
+    name = serializers.CharField()
+    price = serializers.DecimalField(max_digits=10,decimal_places=2)
+    default_image = serializers.CharField()
+    stock = serializers.IntegerField()
+    count = serializers.IntegerField()
+    selected = serializers.BooleanField()
+    amount = serializers.DecimalField(max_digits=10,decimal_places=2)

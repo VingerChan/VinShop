@@ -25,9 +25,15 @@ def add(user_id,sku_id,count):
     pipeline.sadd(_selected_key(user_id),sku_id)
     pipeline.execute()
 
-
+# 购物车中 SKU总数
 def total_count(user_id):
     redis_conn = get_redis_connection('carts')
     # redis_conn.hvals(key) 返回某个 Hash 中所有的 value，不包含 field 名
     # 对hvals(key)返回的value进行累加 得出总数
     return sum(int(value) for value in redis_conn.hvals(_key(user_id)))
+
+# 获取购物车中的勾选SKU
+def get_selected(user_id):
+    redis_conn = get_redis_connection('carts')
+    # Set : {1,2,3,4,5}
+    return {int(sku_id) for sku_id in redis_conn.smembers(_selected_key(user_id))}
