@@ -22,7 +22,7 @@ class CartView(APIView):
         cart = carts.get_all(request.user.id)
         # 如果购物车为空
         if not cart:
-            return Response({'cart_count':0,'total_selected':0,'total_amount':0.00,'cart':[]})
+            return Response({'cart_count':0,'total_selected':0,'total_amount':Decimal('0.00'),'cart':[]})
         # 查询出购物车的 SKU
         skus = SKU.objects.filter(id__in=cart.keys(),is_launched=True)
         # 读出勾选集合    {sku1,sku2,sku3,sku4}
@@ -30,29 +30,15 @@ class CartView(APIView):
         cart_count=0
         total_selected=0
         total_amount=Decimal('0.00')
-        cart_list = []      # 购物车列表
         for sku in skus:
             sku_count = cart[sku.id]
-            # 判断sku.id是否在selected_ids中，存在返回True
-            selected = sku.id in selected_ids
-            amount = sku.price * sku_count
             cart_count += sku_count
-            # 如果当前SKU被勾选
-            if selected:
+            # # 判断sku.id是否在selected_ids中，存在返回True
+            if sku.id in selected_ids:
                 total_selected += sku_count
-                total_amount +=amount
-            cart_list.append({
-                'sku_id':sku.id,
-                'name':sku.name,
-                'price':sku.price,
-                'default_image':sku.default_image.url if sku.default_image else '',
-                'stock':sku.stock,
-                'count':sku_count,
-                'selected':selected,
-                'amount':amount,
-            })
-        serializer = CartItemSerializer(cart_list,many=True)
-        return Response({'cart_count':cart_count,'total_selected':total_selected,'total_amount':total_amount,'cart':cart_list})
+                total_amount += sku.price * sku_count
+        serializer = CartItemSerializer(skus,many=True,context={'counts':cart,'selected':selected_ids})
+        return Response({'cart_count':cart_count,'total_selected':total_selected,'total_amount':total_amount,'cart':serializer.data})
 
 # 全选 / 取消全选
 class CartSelectAllView(APIView):
