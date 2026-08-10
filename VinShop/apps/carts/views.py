@@ -76,3 +76,8 @@ class CartItemView(APIView):
             return Response({'message':'商品库存不足'},status=status.HTTP_400_BAD_REQUEST)
         carts.update_count(request.user.id,sku_id,serializer.validated_data['count'])
         return Response({'cart_count':carts.total_count(request.user.id)})
+    def delete(self,request,sku_id):
+        if not carts.exists(request.user.id,sku_id):
+            return Response({'message':'商品不在购物车中'},status=status.HTTP_404_NOT_FOUND)
+        carts.remove(request.user.id,sku_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)

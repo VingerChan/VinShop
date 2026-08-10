@@ -69,3 +69,12 @@ def exists(user_id,sku_id):
 def update_count(user_id,sku_id,count):
     redis_conn = get_redis_connection('carts')
     redis_conn.hset(_key(user_id),sku_id,count)
+
+# 删除购物车 单个商品
+def remove(user_id,sku_id):
+    redis_conn = get_redis_connection('carts')
+    # 不仅要删除_key 也要删除 _selected_key
+    pipeline = redis_conn.pipeline()
+    pipeline.hdel(_key(user_id),sku_id)
+    pipeline.srem(_selected_key(user_id),sku_id)
+    pipeline.execute()
