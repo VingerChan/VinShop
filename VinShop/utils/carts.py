@@ -65,3 +65,7 @@ def exists(user_id,sku_id):
     redis_conn = get_redis_connection('carts')
     # 返回 1/0 1：field存在
     return redis_conn.hexists(_key(user_id),sku_id)
+
+def update_count(user_id,sku_id,count):
+    redis_conn = get_redis_connection('carts')
+    redis_conn.hset(_key(user_id),sku_id,count)

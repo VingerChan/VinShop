@@ -2,11 +2,10 @@ from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from apps.carts.serializers import CartSerializer,CartItemSerializer,SelectAllSerializer,CartItemSelectSerializer
+from apps.carts.serializers import CartSerializer,CartItemSerializer,SelectAllSerializer,CartItemSelectSerializer,CartCountSerializer
 from apps.goods.models import SKU
 from utils import carts
 from decimal import Decimal
-
 class CartView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self,request):             # 添加商品到购物车
@@ -59,3 +58,21 @@ class CartItemSelectView(APIView):
         serializer.is_valid(raise_exception=True)
         carts.select(request.user.id,sku_id,serializer.validated_data['selected'])
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+class CartItemView(APIView):
+    permission_classes = [IsAuthenticated]
+    # 修改商品count
+    def put(self,request,sku_id):
+        if not carts.exists(request.user.id,sku_id):
+            return Response({'message':'商品不在购物车中'},status=status.HTTP_404_NOT_FOUND)
+        serializer = CartCountSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            sku = SKU.objects.get(id=sku_id,is_launched=True)
+        except SKU.DoesNotExist:
+            return Response({'message':'商品不存在或已下架'},status=status.HTTP_404_NOT_FOUND)
+        #
+        if serializer.validated_data['count'] > sku.stock:
+            return Response({'message':'商品库存不足'},status=status.HTTP_400_BAD_REQUEST)
+        carts.update_count(request.user.id,sku_id,serializer.validated_data['count'])
+        return Response({'cart_count':carts.total_count(request.user.id)})

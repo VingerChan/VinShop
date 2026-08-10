@@ -49,3 +49,6 @@ class CartItemSelectSerializer(serializers.Serializer):
         if not carts.exists(user_id,sku_id):
             raise serializers.ValidationError('商品不在购物车中')
         return attrs
+
+class CartCountSerializer(serializers.Serializer):
+    count = serializers.IntegerField(min_value=1)
