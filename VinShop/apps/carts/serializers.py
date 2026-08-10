@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework.exceptions import NotFound
 from apps.goods.models import SKU
 from utils import carts
 class CartSerializer(serializers.Serializer):
@@ -47,7 +48,7 @@ class CartItemSelectSerializer(serializers.Serializer):
         sku_id = self.context['sku_id']
         user_id = self.context['request'].user.id
         if not carts.exists(user_id,sku_id):
-            raise serializers.ValidationError('商品不在购物车中')
+            raise NotFound('商品不在购物车中')
         return attrs
 
 class CartCountSerializer(serializers.Serializer):

@@ -78,3 +78,11 @@ def remove(user_id,sku_id):
     pipeline.hdel(_key(user_id),sku_id)
     pipeline.srem(_selected_key(user_id),sku_id)
     pipeline.execute()
+
+# 删除购物车 已勾选的商品
+def remove_selected(user_id,sku_ids):
+    redis_conn = get_redis_connection('carts')
+    pipeline = redis_conn.pipeline()
+    pipeline.hdel(_key(user_id),*sku_ids)
+    pipeline.srem(_selected_key(user_id),*sku_ids)
+    pipeline.execute()

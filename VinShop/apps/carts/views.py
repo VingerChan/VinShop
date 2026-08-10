@@ -81,3 +81,13 @@ class CartItemView(APIView):
             return Response({'message':'商品不在购物车中'},status=status.HTTP_404_NOT_FOUND)
         carts.remove(request.user.id,sku_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+class CartDeleteSelectedView(APIView):
+    permission_classes = [IsAuthenticated]
+    def delete(self,request):
+        # 获取购物车中 勾选的商品
+        sku_ids = carts.get_selected(request.user.id)
+        if not sku_ids:
+            return Response({'message':'请至少选择一个商品'},status=status.HTTP_400_BAD_REQUEST)
+        carts.remove_selected(request.user.id,sku_ids)
+        return Response(status=status.HTTP_204_NO_CONTENT)
