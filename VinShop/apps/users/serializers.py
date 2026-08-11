@@ -265,3 +265,10 @@ class AddressSerializer(serializers.ModelSerializer):
             user.default_address = None
             user.save(update_fields=['default_address'])
         return address
+    def to_representation(self,instance):
+        data = super().to_representation(instance)
+        for field  in ('province','city','district'):
+            # 拿到Area模型对象，相当于area = instance.field
+            area = getattr(instance,field,None)
+            data[field] = area.name if area else None
+        return data
