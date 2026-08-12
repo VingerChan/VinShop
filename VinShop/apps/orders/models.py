@@ -11,8 +11,8 @@ class OrderInfo(BaseModel):
         'ALIPAY': 2
     }
     PAY_METHODS_CHOICES = (
-        ('1','货到付款'),
-        ('2','支付宝'),
+        (1,'货到付款'),
+        (2,'支付宝'),
     )
     STATUS_ENUM = {
         'UNPAID': 1,  # 待支付
