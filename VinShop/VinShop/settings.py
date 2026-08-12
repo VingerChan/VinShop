@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
 import os
+from decimal import Decimal
 from pathlib import Path
 
 from django.conf.global_settings import AUTH_USER_MODEL
@@ -238,3 +239,7 @@ ES_SKU_INDEX = 'sku'
 # 浏览记录
 BROWSING_DAYS = 7       # 只保留近七天
 BROWSING_LIMIT = 200    # 单个用户最多保留200条
+
+# 运费计算
+FREE_FREIGHT_LIMIT = Decimal('69.00')
+FREIGHT = Decimal('10.00')
