@@ -3,6 +3,7 @@ from django_redis import get_redis_connection
 
 # 生成订单id编号
 def generate_order_id(user_id):
+    # 把 user.id格式化成 9 位数字，不足前面补 0
     return timezone.localtime().strftime("%Y%m%d%H%M%S%f")+"%09d"%user_id
 
 

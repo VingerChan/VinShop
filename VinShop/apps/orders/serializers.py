@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from apps.goods.models import SKU
+from apps.orders.models import OrderInfo
 class SettlementQuerySerializer(serializers.Serializer):
     sku_id = serializers.IntegerField(required=False)
     count = serializers.IntegerField(required=False,min_value=1)
@@ -20,3 +21,26 @@ class OrderSettlementSKUSerializer(serializers.ModelSerializer):
         return self.context['counts'].get(obj.id,0)
     def get_amount(self,obj):
         return obj.price * self.context['counts'].get(obj.id,0)
+
+class OrderCommitSKUSerializer(serializers.Serializer):
+    sku_id = serializers.IntegerField()
+    count = serializers.IntegerField(min_value=1)
+
+class OrderCommitSerializer(serializers.Serializer):
+    address_id = serializers.IntegerField()
+    pay_method = serializers.ChoiceField(choices=OrderInfo.PAY_METHOD_CHOICES)
+    skus = OrderCommitSKUSerializer(many=True,required=False,allow_empty=False)
+    # 幂等键，前端每次下单生成一次UUID
+    client_token = serializers.CharField(max_length=64)
+    # 单个SKU 立即购买结算 提交订单
+    sku_id = serializers.IntegerField(required=False)
+    count = serializers.IntegerField(required=False,min_value=1)
+
+    def validate(self,attrs):
+        if ('address_id' in attrs) != ('sku_id' in attrs):
+            raise serializers.ValidationError('缺失参数')
+        if 'skus' in attrs and 'sku_id' in attrs:
+            raise serializers.ValidationError('skus和sku_id不能同时传')
+        if 'skus' not in attrs and 'sku_id' not in attrs:
+            raise serializers.ValidationError('请提交要结算的商品')
+        return attrs
