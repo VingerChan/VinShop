@@ -23,7 +23,7 @@ class SKUOrderLock:
         self.sku_ids = sorted(set(sku_ids))  # set去重无序 sorted排序
         self.timeout = timeout  # 锁的TTL
         self.blocking_timeout = blocking_timeout  # 抢锁最长等多久
-        self.conn = get_redis_connection('default')
+        self.conn = get_redis_connection('orders')
         self._locks = []  # 已拿到手的锁，退出时统一归还
 
     def __enter__(self):

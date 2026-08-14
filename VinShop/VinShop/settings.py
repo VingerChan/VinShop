@@ -194,18 +194,25 @@ CACHES = {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
     },
-    'history' : {
+    'history' : {       # 浏览记录
         'BACKEND':'django_redis.cache.RedisCache',
         'LOCATION':'redis://127.0.0.1:6379/2',
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
         }
     },
-    'carts' : {
+    'carts' : {         # 购物车
         'BACKEND':'django_redis.cache.RedisCache',
         'LOCATION':'redis://127.0.0.1:6379/3',
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+        }
+    },
+    'orders' : {        # 订单
+        'BACKEND' : 'django_redis.cache.RedisCache',
+        'LOCATION' : 'redis://127.0.0.1:6379/4',
+        'OPTIONS' : {
+            'CLIENT_CLASS' : 'django_redis.client.DefaultClient',
         }
     }
 }
