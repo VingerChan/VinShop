@@ -7,12 +7,10 @@ class OrderInfo(BaseModel):
     # CHOICES 给Django校验/admin 用： 必须(存库值，中文显示名)
     # if order.status == OrderInfo.ORDER_STATUS_ENUM["UNPAID"]:
     PAY_METHODS_ENUM = {
-        'CASH': 1,
-        'ALIPAY': 2
+        'ALIPAY': 1
     }
     PAY_METHODS_CHOICES = (
-        (1,'货到付款'),
-        (2,'支付宝'),
+        (1,'支付宝'),
     )
     STATUS_ENUM = {
         'UNPAID': 1,  # 待支付
@@ -44,7 +42,7 @@ class OrderInfo(BaseModel):
     """
     total_amount = models.DecimalField(max_digits=10,decimal_places=2,verbose_name='商品总价')
     freight = models.DecimalField(max_digits=10,decimal_places=2,default=10,verbose_name='运费')
-    pay_method = models.SmallIntegerField(default=PAY_METHODS_ENUM['CASH'],choices=PAY_METHODS_CHOICES,verbose_name='支付方式')
+    pay_method = models.SmallIntegerField(default=PAY_METHODS_ENUM['ALIPAY'],choices=PAY_METHODS_CHOICES,verbose_name='支付方式')
     status = models.SmallIntegerField(default=STATUS_ENUM['UNPAID'],choices=STATUS_CHOICES,verbose_name='订单状态')
     class Meta:
         db_table = 'tb_order_info'
