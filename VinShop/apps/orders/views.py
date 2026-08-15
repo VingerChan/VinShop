@@ -1,15 +1,23 @@
+import logging
 from decimal import Decimal
 from django.conf import settings
+from django.db import transaction
+from django.db.models import F
+from django_redis import get_redis_connection
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from apps.orders.models import OrderInfo
+from rest_framework import status
+from apps.orders.models import OrderInfo,OrderGoods
 from apps.goods.models import SKU
+from apps.users.models import Address
 from apps.users.serializers import AddressSerializer
 from utils import carts
-from apps.orders.serializers import SettlementQuerySerializer,OrderSettlementSKUSerializer
+from utils.order import SKUOrderLock,generate_order_id,OrderLockError
+from apps.orders.serializers import SettlementQuerySerializer,OrderSettlementSKUSerializer,OrderCommitSerializer
 
-
+# __name__是模块全路径apps.orders.views
+logger = logging.getLogger(__name__)
 # 获取订单结算页面
 # 收获地址、商品清单、金额汇总、支付方式
 class OrderSettlementView(APIView):
@@ -81,3 +89,95 @@ class OrderSettlementView(APIView):
             'final_amount' : total_amount + freight,
         })
         return Response(result)
+
+class OrderStockError(Exception):
+    """业务性失败（下架 / 库存不足）"""
+
+class OrderCommitView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self,request):
+        serializer = OrderCommitSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data      # 获取校验后的反序列化数据
+        user = request.user
+        # 1.幂等键(Idempotency（幂等性）)：防止“同一笔交两次”
+        conn = get_redis_connection('orders')
+        idem_key = f"order_idem:{user.id}:{data['client_token']}"
+        ok = conn.set(idem_key,'1',nx=True,ex=60)
+        if not ok:
+            return Response({'message':'订单提交过于频繁，请勿重复提交'},status=status.HTTP_409_CONFLICT)
+        # 2.校验前端传的Address_id是否属于该用户的
+        try:
+            address = Address.objects.select_related('province','city','district').get(pk=data['address_id'],user=user)
+        except Address.DoesNotExist:
+            return Response({'message':'收货地址不存在'},status=status.HTTP_400_BAD_REQUEST)
+        # 3. 组装购买清单
+        if 'skus' in data:      # 购物车结算
+            cart = {item['sku_id']:{'count':item['count'],'note':item.get('note','')} for item in data['skus']}
+        else:                   # 立即购买结算
+            cart = {data['sku_id']: {'count':data['count'],'note':data['note']}}
+        goods_list = []
+        try:
+            with transaction.atomic():  # 事务：扣库存 建单 清购物车，失败则回滚
+                with SKUOrderLock(cart.keys()):  # Redis分布式锁：互斥同一批商品
+                    skus = list(SKU.objects.filter(id__in=cart.keys()))
+                    if {sku.id for sku in skus} != set(cart.keys()):    # 去重集合
+                        raise OrderStockError('部分商品不存在，请返回结算页')
+                    for sku in skus:
+                        if not sku.is_launched:
+                            raise OrderStockError(f"{sku.name} 已下架")
+                    total_count = 0
+                    total_amount = Decimal('0.00')
+                    # 4.扣减库存，乐观锁：条件更新+原子自增减
+                    for sku in skus:
+                        sku_info = cart[sku.id]
+                        count = sku_info['count']
+                        note = sku_info['note']
+                        # 先查库存量是否大于 购物车 所需要的数量，再进行更新
+                        result = SKU.objects.filter(pk=sku.id,stock__gte=count).update(stock=F('stock')-count,sales=F('sales')+count)
+                        if result == 0:
+                            raise OrderStockError(f"{sku.name} 库存不足")
+                        goods_list.append((sku,count,note))
+                        total_count += count
+                        total_amount += sku.price * count
+                    # 根据total_amount计算运费
+                    freight = Decimal('0.00') if total_amount >= settings.FREE_FREIGHT_LIMIT else settings.FREIGHT
+                    # 创建订单
+                    order = OrderInfo.objects.create(
+                        order_id = generate_order_id(user.id),
+                        user = user,
+                        address = address,
+                        receiver_name = address.receiver_name,
+                        receiver_mobile = address.mobile,
+                        receiver_address = f"{address.province.name}{address.city.name}{address.district.name}{address.place}",
+                        total_count = total_count,
+                        total_amount = total_amount,
+                        freight = freight,
+                        pay_method = data['pay_method'],
+                        status = OrderInfo.STATUS_ENUM['UNPAID']
+                    )
+                    # 根据order批量创建OrderGoods
+                    OrderGoods.objects.bulk_create([
+                        OrderGoods(order=order,sku=sku,count=count,price=sku.price,note=note) for sku,count,note in goods_list
+                    ])
+        except OrderStockError as e:    # 业务失败
+            conn.delete(idem_key)
+            return Response({'message':str(e)},status=status.HTTP_409_CONFLICT)
+        except OrderLockError as e:    # 抢锁超时
+            conn.delete(idem_key)
+            return Response({'message':str(e)},status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception:
+            conn.delete(idem_key)
+            raise
+        if 'sku_id' not in data:    # 购物车结算 --> 清空购物车
+            try:
+                carts.consume_cart(user.id,{sku_id:sku_info['count'] for sku_id,sku_info in cart.items()})
+            except Exception as e:
+                logger.warning("订单 %s 提交成功但清理购物车失败: %s", order.order_id, e, exc_info=True)
+        return Response({
+            'order_id':order.order_id,
+            'total_amount':order.total_amount,
+            'freight':order.freight,
+            'final_amount':order.total_amount +  order.freight,
+        },status=status.HTTP_201_CREATED)
+

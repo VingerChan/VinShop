@@ -86,3 +86,22 @@ def remove_selected(user_id,sku_ids):
     pipeline.hdel(_key(user_id),*sku_ids)
     pipeline.srem(_selected_key(user_id),*sku_ids)
     pipeline.execute()
+
+
+def consume_cart(user_id,order_skus):
+    conn = get_redis_connection('carts')
+    # 获取购物车所有内容
+    cart = get_all(user_id)
+    # 获取同时在order_skus 和 all_cart 的sku_id
+    sku_ids = {sku_id for sku_id in order_skus if sku_id in cart}
+    if not sku_ids:
+        return
+    pipeline = conn.pipeline()
+    for sku_id in sku_ids:
+        remaining = cart[sku_id] - order_skus[sku_id]
+        if remaining <= 0:    # 直接清空购物车中的sku
+            pipeline.hdel(_key(user_id),sku_id)
+            pipeline.srem(_selected_key(user_id),sku_id)
+        else:    # 将sku的count设置为remaining
+            pipeline.hset(_key(user_id),sku_id,remaining)
+    pipeline.execute()

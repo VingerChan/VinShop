@@ -250,3 +250,33 @@ BROWSING_LIMIT = 200    # 单个用户最多保留200条
 # 运费计算
 FREE_FREIGHT_LIMIT = Decimal('69.00')
 FREIGHT = Decimal('10.00')
+
+os.makedirs(BASE_DIR/'logs',exist_ok=True)
+LOGGING = {
+    'version': 1,    # 配置格式版本号
+    'disable_existing_loggers': False,    # 不禁用已存在的logger
+    'formatters': {    # 格式器：定义"日志长什么样"
+        'verbose': {
+            'format' : '{asctime} [{levelname}] {name}:{lineno} - {message}',
+            'style': '{',
+        }
+    },
+    'handlers' : {    # 处理器：定义"日志输出到哪"
+        # 处理器名字
+        'order_file' : {
+            'class' : 'logging.handlers.RotatingFileHandler',
+            'filename' : str(BASE_DIR/'logs/order.log'),
+            'maxBytes': 1024*1024*10,
+            'backupCount': 5,    # 备份多少个文件
+            'encoding': 'utf-8',
+            'formatter': 'verbose',
+        }
+    },
+    'loggers' : {    # 记录器
+        'apps.orders' : {
+            'handlers': ['order_file'],
+            'level' : 'WARNING',
+            'propagate': False,
+        },
+    },
+}
