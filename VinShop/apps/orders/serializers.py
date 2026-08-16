@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.goods.models import SKU
-from apps.orders.models import OrderInfo
+from apps.orders.models import OrderInfo,OrderGoods
 class SettlementQuerySerializer(serializers.Serializer):
     sku_id = serializers.IntegerField(required=False)
     count = serializers.IntegerField(required=False,min_value=1)
@@ -48,3 +48,29 @@ class OrderCommitSerializer(serializers.Serializer):
         if 'skus' in attrs and len({item['sku_id'] for item in attrs['skus']}) != len(attrs['skus']):
             raise serializers.ValidationError('skus中sku_id不能重复')
         return attrs
+
+class OrderGoodsSerializer(serializers.ModelSerializer):
+    sku_id = serializers.IntegerField(source='sku.id')
+    sku_name = serializers.CharField(source='sku.name')
+    default_image_url = serializers.SerializerMethodField()
+    class Meta:
+        model = OrderGoods
+        fields = ['sku_id','sku_name','default_image_url','count','price','note']
+    def get_default_image_url(self,obj):
+        return obj.sku.default_image.url if obj.sku.default_image else ''
+
+class OrderInfoSerializer(serializers.ModelSerializer):
+    status_text = serializers.SerializerMethodField()
+    pay_method_text = serializers.SerializerMethodField()
+    final_amount = serializers.SerializerMethodField()
+    skus = OrderGoodsSerializer(many=True,read_only=True)   # 只允许序列化输出
+    class Meta:
+        model = OrderInfo
+        fields = ['order_id','create_time','status','status_text','pay_method','pay_method_text','receiver_name','receiver_mobile','receiver_address','total_count','total_amount','freight','final_amount','skus']
+    def get_status_text(self,obj):
+        # 用 Django 自带的方法：get_字段名_display()可以得到展示文本
+        return obj.get_status_display()
+    def get_pay_method_text(self,obj):
+        return obj.get_pay_method_display()
+    def get_final_amount(self,obj):
+        return obj.total_amount + obj.freight

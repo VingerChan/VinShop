@@ -2,7 +2,7 @@ import logging
 from decimal import Decimal
 from django.conf import settings
 from django.db import transaction
-from django.db.models import F
+from django.db.models import F,Prefetch
 from django_redis import get_redis_connection
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -14,7 +14,7 @@ from apps.users.models import Address
 from apps.users.serializers import AddressSerializer
 from utils import carts
 from utils.order import SKUOrderLock,generate_order_id,OrderLockError
-from apps.orders.serializers import SettlementQuerySerializer,OrderSettlementSKUSerializer,OrderCommitSerializer
+from apps.orders.serializers import SettlementQuerySerializer,OrderSettlementSKUSerializer,OrderCommitSerializer,OrderInfoSerializer
 
 # __name__是模块全路径apps.orders.views
 logger = logging.getLogger(__name__)
@@ -181,3 +181,38 @@ class OrderCommitView(APIView):
             'final_amount':order.total_amount +  order.freight,
         },status=status.HTTP_201_CREATED)
 
+class OrderCenterView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self,request):
+        user = request.user
+        # 分页
+        try:
+            page = int(request.query_params.get('page',1))
+            page = min(max(page,1),1000)    # 下限1,上限1000
+            page_size = int(request.query_params.get('page_size',5))
+            page_size = min(max(page_size,1),50)        # 下限1,上限50
+        except ValueError:
+            return Response({'message':'page/page_size必须是正整数'},status=status.HTTP_400_BAD_REQUEST)
+        # 获取当前用户订单
+        orders = OrderInfo.objects.filter(user=user)
+        # 状态筛选
+        raw_status = request.query_params.get('status')
+        if raw_status is not None:
+            try:
+                status_value = int(raw_status)
+            except ValueError:
+                return Response({'message':'status必须是整数'},status=status.HTTP_400_BAD_REQUEST)
+            if status_value not in OrderInfo.STATUS_ENUM.values():
+                return Response({'message':'不支持的订单状态'},status=status.HTTP_400_BAD_REQUEST)
+            orders = orders.filter(status=status_value)
+        # 排序
+        orders = orders.order_by('-create_time').prefetch_related(
+            Prefetch('skus',queryset=OrderGoods.objects.select_related('sku'))
+        )
+        # 分页 切片[start : end]
+        order_count = orders.count()
+        page_orders = orders[(page-1)*page_size:page*page_size]
+        serializer = OrderInfoSerializer(page_orders,many=True)
+        return Response({
+            'total':order_count,'page':page,'page_size':page_size,'orders':serializer.data
+        })
