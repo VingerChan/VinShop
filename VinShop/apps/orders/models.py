@@ -28,7 +28,7 @@ class OrderInfo(BaseModel):
         (5,'已完成'),
         (6,'已取消'),
     )
-    order_id = models.CharField(max_length=64,primary_key=True,verbose_name='订单号')
+    order_id = models.CharField(max_length=64,primary_key=True,verbose_name='订单号',unique=True)
     user = models.ForeignKey(User,on_delete=models.PROTECT,related_name='orders',verbose_name='用户')
     address = models.ForeignKey(Address,on_delete=models.PROTECT,related_name='orders',verbose_name='收货地址')
     # 地址快照，用于后续用户可能因为填错地址信息 而修改
