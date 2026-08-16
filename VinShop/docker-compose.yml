@@ -1,0 +1,34 @@
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.4.1
+    container_name: vinshop-es
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - /home/vingerchan/esdata:/usr/share/elasticsearch/data
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+
+  tracker:
+    image: delron/fastdfs
+    container_name: tracker
+    network_mode: host
+    restart: always
+    command: tracker
+    volumes:
+      - /home/vingerchan/fdfs/tracker:/var/fdfs
+
+  storage:
+    image: delron/fastdfs
+    container_name: storage
+    network_mode: host
+    restart: always
+    command: storage
+    environment:
+      - TRACKER_SERVER=192.168.223.168:22122
+    volumes:
+      - /home/vingerchan/fdfs/storage:/var/fdfs
