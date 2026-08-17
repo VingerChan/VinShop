@@ -13,8 +13,10 @@ from apps.goods.models import SKU
 from apps.users.models import Address
 from apps.users.serializers import AddressSerializer
 from utils import carts
-from utils.order import SKUOrderLock,generate_order_id,OrderLockError
+from utils.order import SKUOrderLock, generate_order_id, OrderLockError, add_order_expire
 from apps.orders.serializers import SettlementQuerySerializer,OrderSettlementSKUSerializer,OrderCommitSerializer,OrderInfoSerializer
+from django.utils import timezone
+from celery_tasks.order.tasks import cancel_timeout_order
 
 # __name__是模块全路径apps.orders.views
 logger = logging.getLogger(__name__)
@@ -174,11 +176,27 @@ class OrderCommitView(APIView):
                 carts.consume_cart(user.id,{sku_id:sku_info['count'] for sku_id,sku_info in cart.items()})
             except Exception as e:
                 logger.warning("订单 %s 提交成功但清理购物车失败: %s", order.order_id, e, exc_info=True)
+        # 订单创建成功后,注册"30分钟自动取消"
+        try:
+            # 截止订单时间戳 将create_time转换为时间戳并相加
+            expire_ts = int(order.create_time.timestamp()) + settings.ORDER_PAY_TIMEOUT
+            # 将订单信息 放入ZSET：倒计时 取消订单
+            add_order_expire(order.order_id,expire_ts)
+            # apply_async生成消息{"task":"","args":[order_id],"eta":截止时间}
+            # celery生成一个任务，在截止时间一到就执行这个任务
+            cancel_timeout_order.apply_async(
+                args=[order.order_id,expire_ts],
+                countdown=settings.ORDER_PAY_TIMEOUT,
+            )
+        except Exception as e:
+            logger.warning("订单 %s 自动取消调度失败：%s",order.order_id, e, exc_info=True)
+            expire_ts = int(timezone.now().timestamp()) + settings.ORDER_PAY_TIMEOUT
         return Response({
             'order_id':order.order_id,
             'total_amount':order.total_amount,
             'freight':order.freight,
             'final_amount':order.total_amount +  order.freight,
+            'expire_ts':expire_ts,
         },status=status.HTTP_201_CREATED)
 
 class OrderCenterView(APIView):

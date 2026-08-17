@@ -1,5 +1,9 @@
+from django.db import transaction
+from django.db.models import F
 from django.utils import timezone
 from django_redis import get_redis_connection
+from django.conf import settings
+from datetime import timedelta
 
 # 生成订单id编号
 def generate_order_id(user_id):
@@ -59,3 +63,44 @@ class SKUOrderLock:
             except Exception:
                 pass
             self._locks=[]
+
+# 把订单写入ZSET
+def add_order_expire(order_id,expire_ts):
+    redis_conn = get_redis_connection('orders')
+    redis_conn.zadd(settings.ORDER_EXPIRE_ZSET_KEY,{order_id:expire_ts})
+
+# 清理指定过期的订单
+# 订单已支付/已取消后,从ZSET移除,避免被beat重复捞到
+def remove_order_expire(order_id):
+    redis_conn = get_redis_connection('orders')
+    redis_conn.zrem(settings.ORDER_EXPIRE_ZSET_KEY,order_id)
+
+# 将一笔待支付订单置为已取消，并回滚库存/销量
+def cancel_unpaid_order(order_id,expire_ts):
+    """
+    :param order_id: 订单编号
+    :param expire_ts:过期截止时间戳
+    :return: True(置为已取消，并成功回滚库存/销量) or False
+    """
+    from apps.orders.models import OrderInfo
+    from apps.goods.models import SKU
+    with transaction.atomic():
+        try:
+            order = OrderInfo.objects.select_for_update().get(order_id=order_id)
+        except OrderInfo.DoesNotExist:
+            remove_order_expire(order_id)
+            return False
+        if order.status != OrderInfo.STATUS_ENUM['UNPAID']:
+            remove_order_expire(order_id)
+            return False
+        # 过期时间 timedelta表示一段时间的长度
+        if timezone.now().timestamp() < expire_ts:    # 当前时间还没有到过期时间
+            return False
+        # 更新状态
+        order.status = OrderInfo.STATUS_ENUM['CANCELED']
+        order.save(update_fields=['status'])
+        # 回滚库存
+        for sku in order.skus.all():
+            SKU.objects.filter(id=sku.sku_id).update(stock=F('stock')+sku.count,sales=F('sales')-sku.count)
+        remove_order_expire(order_id)
+        return True

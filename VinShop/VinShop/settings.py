@@ -290,3 +290,7 @@ APP_PRIVATE_KEY_PATH = os.path.join(BASE_DIR,'apps/payment/keys/app_private_key.
 ALIPAY_PUBLIC_KEY_PATH = os.path.join(BASE_DIR,'apps/payment/keys/alipay_public_key.pem')
 ALIPAY_RETURN_URL=os.environ.get('ALIPAY_RETURN_URL', '')
 ALIPAY_NOTIFY_URL=os.environ.get('ALIPAY_NOTIFY_URL', '')
+
+# 订单支付时间
+ORDER_PAY_TIMEOUT = 30 * 60
+ORDER_EXPIRE_ZSET_KEY = 'order_expire'
