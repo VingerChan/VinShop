@@ -104,3 +104,10 @@ def cancel_unpaid_order(order_id,expire_ts):
             SKU.objects.filter(id=sku.sku_id).update(stock=F('stock')+sku.count,sales=F('sales')-sku.count)
         remove_order_expire(order_id)
         return True
+
+# 取出所有score<=now的订单id 即超过未支付的订单id
+# zset里的时间戳存的是 截止时间的时间戳
+def get_expired_order_ids(now_ts):
+    redis_conn = get_redis_connection('orders')
+    # -inf为负无穷
+    return [(order_id.decode(),int(expire_ts)) for order_id,expire_ts in redis_conn.zrangebyscore(settings.ORDER_EXPIRE_ZSET_KEY,min='-inf',max=now_ts,withscores=True)]
