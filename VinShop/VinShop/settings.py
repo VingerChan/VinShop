@@ -281,3 +281,12 @@ LOGGING = {
         },
     },
 }
+
+# 支付宝
+ALIPAY_APP_ID = os.environ.get('ALIPAY_APP_ID', '')
+ALIPAY_URL = "https://openapi-sandbox.dl.alipaydev.com/gateway.do"
+
+APP_PRIVATE_KEY_PATH = os.path.join(BASE_DIR,'apps/payment/keys/app_private_key.pem')
+ALIPAY_PUBLIC_KEY_PATH = os.path.join(BASE_DIR,'apps/payment/keys/alipay_public_key.pem')
+ALIPAY_RETURN_URL=os.environ.get('ALIPAY_RETURN_URL', '')
+ALIPAY_NOTIFY_URL=os.environ.get('ALIPAY_NOTIFY_URL', '')
