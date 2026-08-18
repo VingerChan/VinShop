@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from apps.goods.models import SKU
 from apps.orders.models import OrderInfo,OrderGoods
+from django.conf import settings
+from datetime import timedelta
 class SettlementQuerySerializer(serializers.Serializer):
     sku_id = serializers.IntegerField(required=False)
     count = serializers.IntegerField(required=False,min_value=1)
@@ -64,9 +66,10 @@ class OrderInfoSerializer(serializers.ModelSerializer):
     pay_method_text = serializers.SerializerMethodField()
     final_amount = serializers.SerializerMethodField()
     skus = OrderGoodsSerializer(many=True,read_only=True)   # 只允许序列化输出
+    expire_ts = serializers.SerializerMethodField()
     class Meta:
         model = OrderInfo
-        fields = ['order_id','create_time','status','status_text','pay_method','pay_method_text','receiver_name','receiver_mobile','receiver_address','total_count','total_amount','freight','final_amount','skus']
+        fields = ['order_id','create_time','expire_ts','status','status_text','pay_method','pay_method_text','receiver_name','receiver_mobile','receiver_address','total_count','total_amount','freight','final_amount','skus']
     def get_status_text(self,obj):
         # 用 Django 自带的方法：get_字段名_display()可以得到展示文本
         return obj.get_status_display()
@@ -74,3 +77,8 @@ class OrderInfoSerializer(serializers.ModelSerializer):
         return obj.get_pay_method_display()
     def get_final_amount(self,obj):
         return obj.total_amount + obj.freight
+    def get_expire_ts(self,obj):
+        if obj.status != obj.STATUS_ENUM['UNPAID']:
+            return None
+        expire_at = obj.create_time + timedelta(seconds=settings.ORDER_PAY_TIMEOUT)
+        return int(expire_at.timestamp())
