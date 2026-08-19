@@ -5,11 +5,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from utils import browse
-from apps.goods.views import SKU
+from apps.goods.models import SKU
 from apps.goods.serializers import SKUSerializer
 
 class BrowseHistoryView(APIView):
-    permission_classes = [IsAuthenticated]
+    def get_permissions(self):
+        if self.request.method == 'POST':
+            return []
+        else:
+            return [IsAuthenticated()]
     def get(self,request):      # 获取浏览记录
         items = browse.recent(request.user.id)
         time_map = {sku_id:timestamp for sku_id,timestamp in items}
@@ -39,4 +43,15 @@ class BrowseHistoryView(APIView):
         else:
             browse.remove(request.user.id,sku_id)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def post(self,request):    # 添加浏览记录
+        sku_id = request.data.get('sku_id')
+        try:
+            sku_id = int(sku_id)
+        except (ValueError,TypeError):
+            return Response({'message':'sku_id无效'},status=status.HTTP_400_BAD_REQUEST)
+        if request.user.is_authenticated:
+            browse.add(request.user.id,sku_id)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 

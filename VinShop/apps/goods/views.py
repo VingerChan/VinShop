@@ -1,7 +1,6 @@
 from django.db.models import Prefetch
 from django.shortcuts import render,get_object_or_404
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from apps.goods.serializers import HomePageSerializer,SKUSerializer,SKUDetailSerializer
@@ -10,7 +9,6 @@ from utils.recommend import get_popular_skus
 from apps.goods.documents import sku_query
 from django.conf import settings
 from utils.es_util import get_client
-from utils import browse
 
 class HomePageView(APIView):
     def get(self,request):
@@ -38,13 +36,11 @@ class RecommendView(APIView):
         return Response(serializer.data)
 
 class SKUDetailView(APIView):
-    permission_classes = [IsAuthenticated]
     def get(self,request,sku_id):
         # 先join把SKU和SPU放在同一张表，再反向查询SKU的所有image
         # sku = get_object_or_404(SKU,id=sku_id)
         sku = get_object_or_404(SKU.objects.select_related('spu').prefetch_related('images').filter(is_launched=True), id=sku_id)
         serializer = SKUDetailSerializer(sku)
-        browse.add(request.user.id,sku.id)
         return Response(serializer.data)
 
 class SearchView(APIView):
