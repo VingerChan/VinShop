@@ -234,3 +234,18 @@ class OrderCenterView(APIView):
         return Response({
             'total':order_count,'page':page,'page_size':page_size,'orders':serializer.data
         })
+
+class OrderDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self,request,order_id):
+        user = request.user
+        try:
+            order = OrderInfo.objects.filter(user=user).prefetch_related(
+                Prefetch(
+                    'skus',
+                    queryset=OrderGoods.objects.select_related('sku')
+                )
+            ).get(order_id=order_id)
+        except OrderInfo.DoesNotExist:
+            return Response({'message':'订单不存在'},status=status.HTTP_404_NOT_FOUND)
+        return Response(OrderInfoSerializer(order).data)
