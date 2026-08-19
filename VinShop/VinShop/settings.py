@@ -271,6 +271,14 @@ LOGGING = {
             'backupCount': 5,    # 备份多少个文件
             'encoding': 'utf-8',
             'formatter': 'verbose',
+        },
+        'payment_file' : {
+            'class' : 'logging.handlers.RotatingFileHandler',
+            'filename' : str(BASE_DIR/'logs/payment.log'),
+            'maxBytes': 1024*1024*10,
+            'backupCount': 5,
+            'encoding': 'utf-8',
+            'formatter': 'verbose',
         }
     },
     'loggers' : {    # 记录器
@@ -279,6 +287,11 @@ LOGGING = {
             'level' : 'WARNING',
             'propagate': False,
         },
+        'utils.alipay' : {
+            'handlers': ['payment_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        }
     },
 }
 
