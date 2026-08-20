@@ -216,6 +216,13 @@ CACHES = {
         'OPTIONS' : {
             'CLIENT_CLASS' : 'django_redis.client.DefaultClient',
         }
+    },
+    'file' : {
+        'BACKEND' : 'django_redis.cache.RedisCache',
+        'LOCATION' : 'redis://127.0.0.1:6379/5',
+        'OPTIONS' : {
+            'CLIENT_CLASS' : 'django_redis.client.DefaultClient',
+        }
     }
 }
 
@@ -280,6 +287,14 @@ LOGGING = {
             'backupCount': 5,
             'encoding': 'utf-8',
             'formatter': 'verbose',
+        },
+        'comment_file' : {
+            'class' : 'logging.handlers.RotatingFileHandler',
+            'filename' : str(BASE_DIR/'logs/comment.log'),
+            'maxBytes': 1024*1024*10,
+            'backupCount': 5,
+            'encoding': 'utf-8',
+            'formatter': 'verbose',
         }
     },
     'loggers' : {    # 记录器
@@ -290,6 +305,11 @@ LOGGING = {
         },
         'utils.alipay' : {
             'handlers': ['payment_file'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'apps.comments' : {
+            'handlers': ['comment_file'],
             'level': 'WARNING',
             'propagate': False,
         }
@@ -308,3 +328,11 @@ ALIPAY_NOTIFY_URL=os.environ.get('ALIPAY_NOTIFY_URL', '')
 # 订单支付时间
 ORDER_PAY_TIMEOUT = 30 * 60
 ORDER_EXPIRE_ZSET_KEY = 'order_expire'
+
+# 评价模块 文件上传限制
+COMMENT_IMAGE_MAX_SIZE = 5 * 1024 * 1024    # 5MB
+COMMENT_VIDEO_MAX_SIZE = 100 * 1024 * 1024     # 100MB
+ALLOWED_IMAGE_TYPES = ('image/png','image/jpeg','image/webp')
+ALLOWED_VIDEO_TYPES = ('video/mp4',)
+FILE_TIMEOUT = 60 * 60 * 24    # 一天
+FILE_KEY = 'comment_pending_uploads'    # 已上传但未被认领的file_id

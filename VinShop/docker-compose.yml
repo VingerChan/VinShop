@@ -29,6 +29,6 @@ services:
     restart: always
     command: storage
     environment:
-      - TRACKER_SERVER=192.168.223.168:22122
+      - TRACKER_SERVER=192.168.233.128:22122
     volumes:
       - /home/vingerchan/fdfs/storage:/var/fdfs
