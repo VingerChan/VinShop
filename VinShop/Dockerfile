@@ -1,0 +1,2 @@
+FROM docker.elastic.co/elasticsearch/elasticsearch:9.4.1
+RUN elasticsearch-plugin install -b https://get.infini.cloud/elasticsearch/analysis-ik/9.4.1
