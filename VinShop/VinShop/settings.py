@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'corsheaders',
     'apps.users',
     'apps.verifications',
     'apps.areas',
@@ -71,6 +72,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -338,3 +340,7 @@ ALLOWED_IMAGE_TYPES = ('image/png','image/jpeg','image/webp')
 ALLOWED_VIDEO_TYPES = ('video/mp4',)
 FILE_TIMEOUT = 60 * 60 * 24    # 一天
 FILE_KEY = 'comment_pending_uploads'    # 已上传但未被认领的file_id
+
+# 跨域配置
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_CREDENTIALS = True
