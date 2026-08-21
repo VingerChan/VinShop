@@ -14,6 +14,10 @@ beat_schedule = {
     'check_expired_orders':{
         'task' : 'celery_tasks.order.tasks.check_expired_orders',
         'schedule' : crontab(minute='*'),    # 每分钟第0秒执行一次
+    },
+    'clean_comment_file':{
+        'task' : 'celery_tasks.comments.tasks.clean_comment_file',
+        'schedule' : crontab(hour=3,minute=30),    #每天凌晨3:30执行一次
     }
 }
 timezone = 'Asia/Shanghai'
