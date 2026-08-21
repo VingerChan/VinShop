@@ -1,19 +1,20 @@
 from django.db import transaction
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django_redis import get_redis_connection
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.pagination import PageNumberPagination
 from django.conf import settings
 from fdfs_client.client import Fdfs_client
 import logging
-from apps.comments.serializers import CommentCreateSerializer
+from apps.comments.serializers import CommentCreateSerializer,CommentSerializer
 from apps.orders.models import OrderInfo,OrderGoods
 from apps.comments.models import Comment
 from apps.goods.models import SKU
-from django.db.models import F
+from django.db.models import F,Count,Q
 
 logger = logging.getLogger(__name__)
 
@@ -113,3 +114,60 @@ class CommentCreateView(APIView):
         except Exception as e:
             logger.warning('评价成功但清理文件标记失败: %s',e,exc_info=True)
         return Response({'message':'评价成功'},status=status.HTTP_201_CREATED)
+
+# 商品详情页的评价展示
+class CommentListView(APIView):
+    def get(self,request,sku_id):
+        sku = get_object_or_404(SKU,pk=sku_id)
+        # 获取SPU所有评价
+        queryset = Comment.objects.filter(spu_id=sku.spu_id).select_related('user__profile').prefetch_related('sku__specs__option')
+        comment_status = queryset.aggregate(
+            all_count=Count('id'),
+            good=Count('id',filter=Q(score__gte=4)),    # 好评4～5个数
+            mid=Count('id',filter=Q(score=3)),    # 中评3星个数
+            bad=Count('id',filter=Q(score__lte=2)),    # 差评1～2星个数
+            media=Count('id',filter=~Q(images=[])|~Q(video=''))
+
+        )
+        # 根据好评 中评 差评筛选评论
+        score_type = request.query_params.get('score_type')
+        if score_type == 'good':
+            queryset = queryset.filter(score__gte=4)
+        elif score_type == 'mid':
+            queryset = queryset.filter(score=3)
+        elif score_type == 'bad':
+            queryset = queryset.filter(score__lte=2)
+        elif score_type is not None:
+            return Response({'message':'score_type仅支持good/mid/bad'},status=status.HTTP_400_BAD_REQUEST)
+        # 筛选晒图
+        has_media = request.GET.get('has_media')
+        if has_media == 'true':
+            # 图片URL不为空 或 videos不为空 即为晒图
+            queryset = queryset.filter(~Q(images=[])|~Q(video=''))
+        # 款式筛选
+        raw_sku_id = request.query_params.get('sku_id')
+        if raw_sku_id is not None:
+            try:
+                queryset = queryset.filter(sku_id=int(raw_sku_id))
+            except ValueError:
+                return Response({'message':'sku_id必须是整数'},status=status.HTTP_400_BAD_REQUEST)
+        # 分页
+        paginator = PageNumberPagination()
+        paginator.page_size_query_param = 'page_size'    # 前端不传默认settings
+        page = paginator.paginate_queryset(queryset, request)
+        serializer = CommentSerializer(page,many=True)
+        # get_paginated_response返回DRF标准分页格式: {count,next,previous,results}
+        response = paginator.get_paginated_response(serializer.data)
+        # 追加自定义字段
+        all_count = comment_status['all_count']
+        # 好评率
+        good_rate = round(comment_status['good']*100/all_count) if all_count else 0
+        response.data['good_rate'] = good_rate
+        response.data['counts'] = {
+            'all' : comment_status['all_count'],
+            'good' : comment_status['good'],
+            'mid' : comment_status['mid'],
+            'bad' : comment_status['bad'],
+            'media' : comment_status['media'],
+        }
+        return response
