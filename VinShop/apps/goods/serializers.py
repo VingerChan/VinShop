@@ -43,7 +43,7 @@ class ContentSerializer(serializers.ModelSerializer):
         model = Content
         fields = ['id','title','img_url','link']
     def get_img_url(self, obj):
-        return FDFS_BASE_URL + obj.image.url
+        return obj.image.url if obj.image else ''
 
 class HomePageSerializer(serializers.Serializer):
     groups = GoodsChannelGroupSerializer(many=True)
