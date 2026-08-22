@@ -100,6 +100,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
         if data.get('user_img'):    # 如果data存在user_img
             data['user_img'] = FDFS_BASE_URL + data['user_img']
         data['email'] = instance.user.email
+        data['mobile'] = instance.user.mobile
         return data
 
 class CenterVerifySmsSerializer(serializers.Serializer):
