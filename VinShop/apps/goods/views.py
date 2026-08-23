@@ -74,6 +74,12 @@ class SearchView(APIView):
         total = result['hits']['total']['value']
         # result['hits']['hits']是列表 存放SKU 数据
         es_ids = [hit['_id'] for hit in result['hits']['hits']]
+        highlights = {}
+        for hit in result['hits']['hits']:
+            sku_id = int(hit['_id'])
+            # 如果有高亮就提取高亮文本，否则返回None
+            hl = hit.get('highlight',{}).get('name',[None])[0]
+            highlights[sku_id] = hl
         # 在数据库返回的顺序是不确定的 要重新按照sku_ids进行排序
         skus = list(SKU.objects.filter(id__in=es_ids))
         sku_dict = {sku.id:sku for sku in skus}
@@ -84,4 +90,5 @@ class SearchView(APIView):
             'page':page,
             'page_size':page_size,
             'skus':serializer.data,
+            'highlights':highlights,
         })

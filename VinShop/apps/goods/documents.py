@@ -96,4 +96,5 @@ def sku_query(keyword,page,page_size,ordering='',min_price=None,max_price=None):
     # 如果 用户 要求排序，不要求排序 默认走_score 即关键字匹配分数
     if sort_body:
         body['sort'] = sort_body
+    body['highlight'] = HIGHLIGHT
     return body
