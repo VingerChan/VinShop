@@ -249,3 +249,19 @@ class OrderDetailView(APIView):
         except OrderInfo.DoesNotExist:
             return Response({'message':'订单不存在'},status=status.HTTP_404_NOT_FOUND)
         return Response(OrderInfoSerializer(order).data)
+
+# 确认收货
+class OrderConfirmReceivedView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self,request,order_id):
+        user = request.user
+        with transaction.atomic():
+            try:
+                order = OrderInfo.objects.select_for_update().get(order_id=order_id,user=user)
+            except OrderInfo.DoesNotExist:
+                return Response({'message':'订单不存在'},status=status.HTTP_404_NOT_FOUND)
+            if order.status != OrderInfo.STATUS_ENUM['UNRECEIVED']:
+                return Response({'message':'订单当前状态不可确认收货'},status=status.HTTP_400_BAD_REQUEST)
+            order.status = OrderInfo.STATUS_ENUM['UNCOMMENT']
+            order.save(update_fields=['status'])
+        return Response({'message':'确认收货成功'})
