@@ -67,9 +67,10 @@ class OrderInfoSerializer(serializers.ModelSerializer):
     final_amount = serializers.SerializerMethodField()
     skus = OrderGoodsSerializer(many=True,read_only=True)   # 只允许序列化输出
     expire_ts = serializers.SerializerMethodField()
+    pay_time = serializers.SerializerMethodField()
     class Meta:
         model = OrderInfo
-        fields = ['order_id','create_time','expire_ts','status','status_text','pay_method','pay_method_text','receiver_name','receiver_mobile','receiver_address','total_count','total_amount','freight','final_amount','skus']
+        fields = ['order_id','create_time','pay_time','expire_ts','status','status_text','pay_method','pay_method_text','receiver_name','receiver_mobile','receiver_address','total_count','total_amount','freight','final_amount','skus']
     def get_status_text(self,obj):
         # 用 Django 自带的方法：get_字段名_display()可以得到展示文本
         return obj.get_status_display()
@@ -82,3 +83,6 @@ class OrderInfoSerializer(serializers.ModelSerializer):
             return None
         expire_at = obj.create_time + timedelta(seconds=settings.ORDER_PAY_TIMEOUT)
         return int(expire_at.timestamp())
+    def get_pay_time(self,obj):
+        payment = obj.payment_set.filter(order_id=obj.order_id).first()
+        return payment.create_time if payment else None
