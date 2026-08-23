@@ -95,6 +95,18 @@ TEMPLATES = [
             ],
         },
     },
+    {
+        'NAME': 'django_jinja',
+        'BACKEND' : 'django_jinja.backend.Jinja2',
+        'DIRS' : [BASE_DIR / 'templates'],    # 模板目录
+        'APP_DIRS' : True,
+        'OPTIONS' : {
+            'match_extension' : '.jinja2',    # 匹配 .jinja2 后缀的文件
+            'context_processors' : [
+                'django.template.context_processors.request',
+            ],
+        }
+    }
 ]
 
 WSGI_APPLICATION = 'VinShop.wsgi.application'
@@ -148,8 +160,12 @@ USE_TZ = True
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
-
+# 静态文件配置
 STATIC_URL = 'static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'    # Django的collectstatic命令会把所有静态文件收集到这里
+STATICFILES_DIRS = [    # 额外的静态文件目录，Celery生成的静态文件会放在这里
+    BASE_DIR / 'static',
+]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -299,6 +315,14 @@ LOGGING = {
             'backupCount': 5,
             'encoding': 'utf-8',
             'formatter': 'verbose',
+        },
+        'static_file' : {
+            'class' : 'logging.handlers.RotatingFileHandler',
+            'filename' : str(BASE_DIR/'logs/static.log'),
+            'maxBytes': 1024*1024*10,
+            'backupCount': 5,
+            'encoding': 'utf-8',
+            'formatter': 'verbose',
         }
     },
     'loggers' : {    # 记录器
@@ -316,7 +340,12 @@ LOGGING = {
             'handlers': ['comment_file'],
             'level': 'WARNING',
             'propagate': False,
-        }
+        },
+        'celery_tasks.static_index' : {
+            'handlers' : ['static_file'],
+            'level' : 'WARNING',
+            'propagate': False,
+        },
     },
 }
 

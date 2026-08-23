@@ -18,6 +18,10 @@ beat_schedule = {
     'clean_comment_file':{
         'task' : 'celery_tasks.comments.tasks.clean_comment_file',
         'schedule' : crontab(hour=3,minute=30),    #每天凌晨3:30执行一次
+    },
+    'generate_static_index_html':{
+        'task' : 'celery_tasks.static_index.tasks.generate_static_index',
+        'schedule' : crontab(minute='*/3'),
     }
 }
 timezone = 'Asia/Shanghai'

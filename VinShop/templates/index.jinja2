@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" type="image/svg+xml" href="/vite.svg">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VinShop 电商商城</title>
+    <meta name="description" content="VinShop电商平台，提供优质的商品和服务">
+    <meta name="keywords" content="电商,购物,商品,VinShop">
+    <link rel="stylesheet" href="/assets/index-DDL6kwf-.css">
+    <script type="module" src="/assets/index-Crj0j874.js"></script>
+    <script>window.__PRELOADED_CATEGORIES__ = {{ categories | tojson }};</script>
+</head>
+<body>
+    <div id="app">
+        <!-- 顶部导航栏（纯静态） -->
+        <header class="app-header">
+            <div class="header-container container">
+                <div class="header-left">
+                    <a href="/" class="logo">VinShop</a>
+                </div>
+                <div class="header-center">
+                    <form class="search-form" action="/search" method="get">
+                        <input type="text" name="keyword" placeholder="搜索商品" class="search-input">
+                        <button type="submit" class="search-btn">搜索</button>
+                    </form>
+                </div>
+                <div class="header-right">
+                    <a href="/cart" class="nav-link">🛒 购物车</a>
+                    <a href="/orders" class="nav-link">📦 我的订单</a>
+                    <a href="/user" class="nav-link">👤 个人中心</a>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主要内容区 -->
+        <main class="main-content">
+            <div class="home container">
+                <!-- 分类导航 + 轮播图（Celery预渲染） -->
+                <div class="home-layout">
+                    {% if categories and categories.groups %}
+                    <div class="category-sidebar">
+                        {% for group in categories.groups %}
+                        <div class="category-group">
+                            <div class="group-channels">
+                                {% for ch in group.channels %}
+                                <div class="category-item">
+                                    <a href="/search?keyword={{ ch.category_name }}" class="channel-name">
+                                        {{ ch.category_name }}
+                                    </a>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+
+                    <div class="main-content-area">
+                        {% if categories and categories.contents and categories.contents.index_lbt %}
+                        <div class="ad-banner">
+                            <div class="banner-carousel">
+                                {% for img in categories.contents.index_lbt %}
+                                <a href="{{ img.link }}" class="banner-link">
+                                    <img src="{{ img.img_url }}" class="banner-img" alt="广告 banner">
+                                </a>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- 推荐商品（fetch实时加载） -->
+                <div id="recommend-section" class="section">
+                    <h3 class="section-title">为你推荐</h3>
+                    <div class="goods-grid" id="goods-container">加载中...</div>
+                </div>
+            </div>
+        </main>
+
+        <footer class="app-footer">
+            <div class="footer-container container">
+                <p>© 2026 VinShop 版权所有</p>
+            </div>
+        </footer>
+    </div>
+
+<script>
+fetch('/api/goods/recommend/')
+  .then(function(res) { return res.json() })
+  .then(function(data) {
+    var c = document.getElementById('goods-container');
+    c.innerHTML = data.map(function(item) {
+      return '<div class="goods-card">' +
+        '<a href="/detail/' + item.id + '">' +
+        '<img src="' + (item.default_img_url || '') + '" class="goods-img" onerror="this.src=\'https://via.placeholder.com/200x200?text=No+Image\'">' +
+        '<div class="goods-info">' +
+        '<div class="goods-name">' + item.name + '</div>' +
+        '<div class="goods-price">¥' + item.price + '</div>' +
+        '<div class="goods-meta"><span>评论 ' + (item.comments || 0) + '</span><span>销量 ' + (item.sales || 0) + '</span></div>' +
+        '</div></a></div>';
+    }).join('');
+  })
+  .catch(function() {
+    document.getElementById('goods-container').innerText = '加载失败，请刷新重试';
+  });
+</script>
+</body>
+</html>
