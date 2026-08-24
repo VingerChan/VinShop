@@ -1,7 +1,10 @@
 from django.db.models.signals import post_delete,post_save
 from django.dispatch import receiver
-from apps.goods.models import Brand,SKUImage,Content,SKU,SPU
+from apps.goods.models import Brand,SKUImage,Content,SKU,SPU,SKUSpec,SPUSpec
 from celery_tasks.search.tasks import update_sku_index,delete_sku_index
+from celery_tasks.static_detail.tasks import generate_static_sku_detail
+import os
+from django.conf import settings
 import logging
 
 logger = logging.getLogger(__name__)
@@ -53,3 +56,33 @@ def refresh_spu_skus(sender,instance,**kwargs):
     # flat=True让返回的id不带元组壳[(1,),(2,)]，而是一维值列表[1,2]
     for sku_id in instance.skus.values_list('id',flat=True):
         update_sku_index.delay(sku_id)
+
+@receiver(post_save,sender=SKU)
+def sku_post_save_static(sender,instance,**kwargs):
+    generate_static_sku_detail.delay(instance.id)
+
+@receiver(post_delete,sender=SKU)
+def sku_post_delete_static(sender,instance,**kwargs):
+    file_path = os.path.join(settings.BASE_DIR,'static','pages','detail',f'{instance.id}.html')
+    if os.path.exists(file_path):
+        os.remove(file_path)
+
+@receiver(post_save,sender=SKUImage)
+@receiver(post_delete,sender=SKUImage)
+def sku_image_changed_static(sender,instance,**kwargs):
+    generate_static_sku_detail.delay(instance.sku_id)
+
+@receiver(post_save,sender=SKUSpec)
+@receiver(post_delete,sender=SKUSpec)
+def sku_spec_changed_static(sender,instance,**kwargs):
+    generate_static_sku_detail.delay(instance.sku_id)
+
+@receiver(post_save,sender=SPUSpec)
+def spu_spec_changed_static(sender,instance,**kwargs):
+    for sku_id in instance.spu.skus.values_list('id',flat=True):
+        generate_static_sku_detail.delay(sku_id)
+
+@receiver(post_save,sender=SPU)
+def spu_post_save_static(sender,instance,**kwargs):
+    for sku_id in instance.skus.values_list('id',flat=True):
+        generate_static_sku_detail.delay(sku_id)
