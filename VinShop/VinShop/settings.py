@@ -346,6 +346,11 @@ LOGGING = {
             'level' : 'WARNING',
             'propagate': False,
         },
+        'utils.generate_static_detail' : {
+            'handlers' : ['static_file'],
+            'level' : 'INFO',
+            'propagate': False,
+        }
     },
 }
 
