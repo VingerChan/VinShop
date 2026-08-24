@@ -5,6 +5,7 @@ from django.db.models import Prefetch
 from django.template import loader
 import os
 from django.conf import settings
+import glob
 
 logger = logging.getLogger(__name__)
 
@@ -49,11 +50,17 @@ def generate_static_index():
             categories['contents'][content_cat.key] = [
                 {'id' : t.id,'img_url' : t.image.url if t.image else '','link' : t.link} for t in content_cat.contents.filter(is_active=True).order_by('sequence')
             ]
+        # 读取css内容
+        css_files = glob.glob(os.path.join(settings.BASE_DIR,'..','frontend','dist','assets','index-*.css'))
+        css_content = ''
+        if css_files:
+            with open(css_files[0],'r',encoding='utf-8') as f:
+                css_content = f.read()
         # 渲染模板
         template = loader.get_template('index.jinja2',using='django_jinja')
-        html_content = template.render({'categories': categories})
+        html_content = template.render({'categories': categories,'css_content':css_content})
         # 写入静态文件
-        file_path = os.path.join(settings.BASE_DIR,'static','pages','index.html')
+        file_path = os.path.join(settings.BASE_DIR,'..','frontend','dist','index.html')
         """
             os.path.dirname(file_path)提取目录部分去掉文件名(index.html)
             os.makedirs(path,exist_ok=True)递归创建目录,父目录必须存在,所以先拿到目录路径
