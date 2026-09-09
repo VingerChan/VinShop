@@ -28,4 +28,5 @@ urlpatterns = [
     path('api/',include('apps.orders.urls')),
     path('api/',include('apps.payment.urls')),
     path('api/',include('apps.comments.urls')),
+    path('api/',include('apps.human_agent.urls'))
 ]

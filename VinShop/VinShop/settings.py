@@ -67,6 +67,7 @@ INSTALLED_APPS = [
     'apps.orders',
     'apps.payment',
     'apps.comments',
+    'apps.human_agent',
 ]
 
 MIDDLEWARE = [

@@ -91,7 +91,7 @@ class LoginSerializer(serializers.Serializer):
 class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserProfile
-        fields = ['user_img','nickname','gender','birthday']
+        fields = ['user_id','user_img','nickname','gender','birthday']
     # to_representation() 是 DRF 中，把「模型对象 → Python 字典 → JSON」的核心转换函数
     def to_representation(self,instance):   # 重写
         # 输出时将user_img拼成完整URL
