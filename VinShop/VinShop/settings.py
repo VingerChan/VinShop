@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'corsheaders',
+    'channels',
     'apps.users',
     'apps.verifications',
     'apps.areas',
@@ -244,6 +245,13 @@ CACHES = {
         'OPTIONS' : {
             'CLIENT_CLASS' : 'django_redis.client.DefaultClient',
         }
+    },
+    'human_agent' : {
+        'BACKEND': 'django_redis.cache.RedisCache',
+        'LOCATION' : 'redis://127.0.0.1:6379/6',
+        'OPTIONS' : {
+            'CLIENT_CLASS' : 'django_redis.client.DefaultClient',
+        }
     }
 }
 
@@ -379,3 +387,14 @@ FILE_KEY = 'comment_pending_uploads'    # 已上传但未被认领的file_id
 # 跨域配置
 CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
+
+# 人工客服配置
+CHANNEL_LAYERS = {
+    'default' : {
+        'BACKEND' : 'channels_redis.core.RedisChannelLayer',
+        'CONFIG' : {
+            'hosts': [('127.0.0.1', 6379, 6)],
+        }
+    }
+}
+QUEUE_MAX_SIZE = 100
