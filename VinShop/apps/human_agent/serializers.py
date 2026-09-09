@@ -3,7 +3,6 @@ from apps.human_agent.models import HumanAgentMessage
 
 # 创建转接会话的请求序列化器
 class TransferCreateSerializer(serializers.Serializer):
-    user_id = serializers.CharField(max_length=64, help_text='用户ID')
     ai_chat_history = serializers.ListField(required=False, default=list, help_text='AI聊天历史记录')
 
 # 发送消息的请求序列化器
