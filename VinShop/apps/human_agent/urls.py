@@ -1,9 +1,10 @@
 from django.urls import path
-from apps.human_agent.views import TransferCreateView, QueuePositionView, SendMessageView, EndSessionView, AgentStatusView
+from apps.human_agent.views import TransferCreateView, QueuePositionView, SendMessageView, EndSessionView, AgentStatusView, HistoryView
 urlpatterns = [
     path('transfer/create/', TransferCreateView.as_view()),
     path('transfer/queue-position/<str:session_id>/', QueuePositionView.as_view()),
     path('transfer/message/', SendMessageView.as_view()),
     path('transfer/end/', EndSessionView.as_view()),
     path('transfer/agent/status/', AgentStatusView.as_view()),
+    path('transfer/history/<str:session_id>/', HistoryView.as_view()),
 ]

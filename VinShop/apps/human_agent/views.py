@@ -188,3 +188,33 @@ class AgentStatusView(APIView):
             'busy_agents': busy_agents.count(),
             'agents': agent_list,
         })
+
+# 查询历史消息
+class HistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, session_id):
+        # 查询会话记录，同时校验两个条件：session_id 存在 且 属于当前用户
+        try:
+            session = HumanAgentSession.objects.get(session_id=session_id, user=request.user)
+        except HumanAgentSession.DoesNotExist:
+            return Response({
+                'error': 'session_not_found',
+                'message': '会话不存在',
+            }, status=status.HTTP_404_NOT_FOUND)
+        messages = HumanAgentMessage.objects.filter(session=session)
+        message_list = []
+        for message in messages:
+            message_list.append({
+                'message_id': str(message.id),
+                'sender_type': message.sender_type,
+                'sender_id': message.sender_id,
+                'content': message.content,
+                'message_type': message.message_type,
+                'metadata': message.metadata,
+                'created_at': message.create_time.isoformat(),
+            })
+        return Response({
+            'session_id': session_id,
+            'messages': message_list,
+            'total_count': len(message_list),
+        })

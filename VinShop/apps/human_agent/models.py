@@ -70,4 +70,4 @@ class HumanAgentMessage(BaseModel):
         db_table = 'tb_human_agent_messages'
         verbose_name = '人工客服消息'
         verbose_name_plural = verbose_name
-        ordering = ['-create_time']
+        ordering = ['create_time']
