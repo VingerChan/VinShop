@@ -1,6 +1,6 @@
 # VinShop 电商商城
 
-> 前后端分离的全栈电商系统。后端基于 Django REST Framework，前端基于 Vue 3 + Element Plus SPA，涵盖用户认证、商品管理、全文搜索、购物车、订单、支付、评价等完整业务链路，注重高并发场景下的数据一致性与系统可靠性。
+> 前后端分离的全栈电商系统。后端基于 Django REST Framework，前端基于 Vue 3 + Element Plus SPA，涵盖用户认证、商品管理、全文搜索、购物车、订单、支付、评价、人工客服等完整业务链路，注重高并发场景下的数据一致性与系统可靠性。
 
 ![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)
 ![Django](https://img.shields.io/badge/Django-5.2-green?logo=django)
@@ -32,9 +32,11 @@ VinShop 是一个独立设计并实现的电商后端系统，采用前后端分
 | Web 框架 | Django 5.2 + Django REST Framework 3.17 |
 | 认证方案 | JWT（SimpleJWT）双 Token 机制 |
 | 数据库 | MySQL 8.0 |
-| 缓存/存储 | Redis 8.0（6 个 DB 分库隔离） |
+| 缓存/存储 | Redis 8.0（7 个 DB 分库隔离） |
 | 搜索引擎 | Elasticsearch 9.x + IK 中文分词 |
 | 消息队列 | RabbitMQ + Celery 5.6 |
+| WebSocket | Django Channels 4.3 + channels-redis 4.3 |
+| ASGI Server | Daphne 4.2 |
 | 文件存储 | FastDFS 分布式文件系统 |
 | 短信服务 | 容联云 SMS SDK |
 | 支付 | 支付宝开放平台（沙箱环境） |
@@ -269,6 +271,29 @@ npm run sync         # 同步构建产物到 Jinja2 模板（自动 postbuild）
 - 7 天自动过期 + 单用户最多 200 条裁剪
 - 按天分组返回前端
 
+### 10. 人工客服模块（human_agent）
+
+| 功能 | 实现方案 |
+|------|---------|
+| 转接会话 | 创建会话 → 加入 Redis FIFO 队列 → 自动分配空闲客服 |
+| 排队队列 | Redis LIST 实现，FIFO 顺序，支持容量限制（QUEUE_MAX_SIZE=100） |
+| 客服分配 | 按可用槽位降序分配，容量满自动标记 busy |
+| 实时通信 | Django Channels WebSocket（AgentConsumer + UserConsumer） |
+| 排队留言 | 用户排队中发送的消息存入 DB，分配客服时随 new_assignment 一并推送 |
+| 会话管理 | 状态机：transfer_requested → in_queue → human_active → session_completed |
+
+**REST API（6个）**：
+- POST `/api/transfer/create` — 创建转接会话
+- GET `/api/transfer/queue-position/{session_id}` — 查询排队位置
+- POST `/api/transfer/message` — 发送消息
+- POST `/api/transfer/end` — 结束会话
+- GET `/api/transfer/agent/status` — 查询客服状态
+- GET `/api/transfer/history/{session_id}` — 查询历史消息
+
+**WebSocket 端点（2个）**：
+- `ws://host/ws/agent` — 客服端（连接/断线/收发消息）
+- `ws://host/ws/user` — 用户端（接收客服消息推送）
+
 ### 10. 首页静态化（static_index / static_detail）
 
 - **首页**：Celery Beat 每 3 分钟生成 `static/pages/index.html`（Jinja2 渲染分类、频道、广告数据）
@@ -281,7 +306,7 @@ npm run sync         # 同步构建产物到 Jinja2 模板（自动 postbuild）
 
 ### 1. Redis 多业务隔离
 
-6 个 Redis DB 分离不同业务：
+7 个 Redis DB 分离不同业务：
 
 | DB | 用途 | 数据结构 |
 |----|------|---------|
@@ -291,6 +316,7 @@ npm run sync         # 同步构建产物到 Jinja2 模板（自动 postbuild）
 | 3 | 购物车 | Hash + Set |
 | 4 | 订单 | ZSET（过期排序）+ String（分布式锁、幂等键） |
 | 5 | 文件追踪 | ZSET（score=过期时间戳） |
+| 6 | 人工客服 | Channel Layer + LIST（等待队列） |
 
 ### 2. 高并发下单防超卖
 
@@ -374,6 +400,14 @@ class FastDFSStorage(Storage):
 
 评价模块额外使用 Redis ZSET 追踪已上传但未被认领的文件，Celery Beat 定期清理。
 
+### 9. WebSocket 实时通信
+
+- Django Channels + Redis Channel Layer 实现双向实时通信
+- AgentConsumer（客服端）：上线/下线/收发消息/结束会话
+- UserConsumer（用户端）：接收客服消息推送和会话结束通知
+- 客服下线自动将活跃会话重新入队，保证服务连续性
+- 异步 Consumer（AsyncWebsocketConsumer）消除 sync→async 包装层，解决消息丢失问题
+
 ---
 
 ## 项目结构
@@ -398,7 +432,8 @@ VinShop/
 │   ├── orders/               # 订单：结算/下单/列表/详情/确认收货
 │   ├── payment/              # 支付：支付宝 URL/状态查询/异步通知
 │   │   └── keys/             # RSA 密钥文件
-│   └── comments/             # 评价：文件上传/创建/列表/统计
+│   ├── comments/             # 评价：文件上传/创建/列表/统计
+│   └── human_agent/          # 人工客服：转接/排队/消息/WebSocket
 ├── celery_tasks/
 │   ├── main.py               # Celery 实例，自动发现 7 个任务模块
 │   ├── config.py             # Broker（RabbitMQ）+ Beat Schedule
@@ -619,6 +654,17 @@ npm run build
 | `/api/browse/{sku_id}/` | DELETE | 删除单条记录 | JWT |
 | `/api/browse/` | DELETE | 清空浏览记录 | JWT |
 
+### 人工客服
+
+| URL | 方法 | 说明 | 认证 |
+|-----|------|------|------|
+| `/api/transfer/create/` | POST | 创建转接会话 | JWT |
+| `/api/transfer/queue-position/{session_id}/` | GET | 查询排队位置 | JWT |
+| `/api/transfer/message/` | POST | 发送消息 | JWT |
+| `/api/transfer/end/` | POST | 结束会话 | JWT |
+| `/api/transfer/agent/status/` | GET | 查询客服状态 | JWT |
+| `/api/transfer/history/{session_id}/` | GET | 查询历史消息 | JWT |
+
 ---
 
 ## 部署方案
@@ -663,10 +709,12 @@ celery -A celery_tasks.main beat -l info
 
 本项目是一个全栈电商系统，后端从零开始独立设计与实现，前端全程使用 AI 工具辅助开发，独立锻炼 AI 辅助开发能力，完美适配后端 40+ 接口。通过这个项目实践了以下核心能力：
 
-- **RESTful API 设计**：9 个应用、40+ 个接口，统一规范的 URL 设计与响应格式
+- **RESTful API 设计**：9 个应用、46+ 个接口，统一规范的 URL 设计与响应格式
 - **高并发数据一致性**：分布式锁、乐观锁、幂等性等机制的实际应用
 - **异步任务架构**：Celery 生产者-消费者模式，7 类任务的合理拆分与调度
 - **搜索引擎集成**：Elasticsearch 索引设计、IK 分词配置、信号驱动的增量同步
 - **分布式系统基础**：FastDFS 文件存储、Redis 多业务隔离、消息队列解耦
 - **支付系统集成**：支付宝全流程（下单→支付→回调→退款），异步通知容错处理
-- **前端 AI 辅助开发**：Vue 3 + Element Plus SPA 全流程 AI 辅助开发，完美适配后端 40+ 接口
+- **WebSocket 实时通信**：Django Channels 双向通信，人工客服实时对话
+- **排队与负载均衡**：Redis FIFO 队列 + 客服容量控制，自动分配最优客服
+- **前端 AI 辅助开发**：Vue 3 + Element Plus SPA 全流程 AI 辅助开发，完美适配后端 46+ 接口
