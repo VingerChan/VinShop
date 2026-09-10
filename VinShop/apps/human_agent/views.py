@@ -1,7 +1,7 @@
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from apps.human_agent.serializers import TransferCreateSerializer, SendMessageSerializer, EndSessionSerializer
-from apps.human_agent.models import HumanAgentSession, HumanAgentMessage
+from apps.human_agent.models import HumanAgentSession, HumanAgentMessage, HumanAgent
 from rest_framework.response import Response
 from rest_framework import status
 import uuid
@@ -165,3 +165,26 @@ class EndSessionView(APIView):
             'ended_at': session.ended_at.isoformat(),
         })
 
+# 查询客服状态API
+class AgentStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        agents = HumanAgent.objects.all()
+        online_agents = agents.filter(status='online')
+        busy_agents = agents.filter(status='busy')
+        agent_list = []
+        for agent in agents:
+            agent_list.append({
+                'agent_id': agent.agent_id,
+                'agent_name': agent.agent_name,
+                'status': agent.status,
+                'current_sessions': agent.current_sessions,
+                'max_capacity': agent.max_capacity,
+                'available_slots': max(0, agent.max_capacity - agent.current_sessions),    # 还能接多少用户
+            })
+        return Response({
+            'total_agents': agents.count(),
+            'online_agents': online_agents.count(),
+            'busy_agents': busy_agents.count(),
+            'agents': agent_list,
+        })
