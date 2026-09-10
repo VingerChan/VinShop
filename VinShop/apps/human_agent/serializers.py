@@ -8,8 +8,6 @@ class TransferCreateSerializer(serializers.Serializer):
 # 发送消息的请求序列化器
 class SendMessageSerializer(serializers.Serializer):
     session_id = serializers.CharField(max_length=64, help_text='会话ID')
-    sender_type = serializers.ChoiceField(choices=HumanAgentMessage.SENDER_TYPE_CHOICES)
-    sender_id = serializers.CharField(max_length=64, help_text='发送者ID')
     content = serializers.CharField(help_text='消息内容')
     message_type = serializers.ChoiceField(choices=HumanAgentMessage.MESSAGE_TYPE_CHOICES, default='text')
     # 元数据，图片/文件消息时使用
