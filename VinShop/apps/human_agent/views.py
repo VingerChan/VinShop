@@ -57,3 +57,24 @@ class TransferCreateView(APIView):
                 if queue_position > 0 else '已为您接通人工客服'
             )
         }, status=status.HTTP_201_CREATED)
+
+class QueuePositionView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request, session_id):
+        try:
+            session = HumanAgentSession.objects.get(session_id=session_id, user=request.user)
+        except HumanAgentSession.DoesNotExist:
+            return Response({
+                'error': 'session_not_found',
+                'message': '会话不存在',
+            },status=status.HTTP_404_NOT_FOUND)
+        queue = WaitingQueue()
+        position = queue.get_position(session_id)    # 当前排队位置
+        queue_length = queue.get_queue_length()    # 当前队列总人数
+        return Response({
+            'session_id': session_id,
+            'position': position or 0,
+            'total_in_queue': queue_length,
+            'estimated_wait_seconds': (position or 0) * 60,
+            'status': session.status,
+        })
