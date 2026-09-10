@@ -194,3 +194,53 @@ class AgentConsumer(WebsocketConsumer):
             'session_id': event['session_id'],
             'reason': event['reason'],
         }))
+
+class UserConsumer(WebsocketConsumer):
+    def connect(self):
+        params = dict(
+            p.split('=')
+            for p in self.scope['query_string'].decode().split('&')
+            if '=' in p
+        )
+        self.user_id = params.get('user_id')
+        if not self.user_id:
+            self.send(text_data=json.dumps({
+                'code': 4001,
+                'reason': '缺少user_id参数',
+            }))
+            self.close()
+            return
+        # 把当前这个WebSocket连接加入一个channel group
+        self.channel_layer.group_add(
+            f'user_{self.user_id}', self.channel_name
+        )
+        self.accept()    # 接受WebSocket连接
+        self.send(text_data=json.dumps({
+            'type': 'connect_success',
+            'user_id': self.user_id,
+        }))
+
+    def disconnect(self, close_code):
+        if hasattr(self, 'user_id') and self.user_id:
+            self.channel_layer.group_discard(
+                f'user_{self.user_id}', self.channel_name
+            )
+
+    def receive(self, text_data=None, bytes_data=None):
+            pass
+
+    # Channel Layer 消息处理器
+    def user_message(self, event):
+        self.send(text_data=json.dumps({
+            'type': 'user_message',
+            'session_id': event['session_id'],
+            'content': event['content'],
+            'metadata': event.get('metadata'),
+        }))
+
+    def session_ended(self, event):
+        self.send(text_data=json.dumps({
+            'type': 'session_ended',
+            'session_id': event['session_id'],
+            'reason': event['reason'],
+        }))
