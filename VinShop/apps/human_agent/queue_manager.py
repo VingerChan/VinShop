@@ -60,6 +60,14 @@ class WaitingQueue:
         :return: 当前队列长度
         """
         return self.redis_conn.llen(QUEUE_KEY)
+    def remove(self, session_id: str) -> int:
+        """
+        从队列中移除指定会话
+        :param session_id: 会话id
+        :return: 移除的元素个数(0或1)
+        """
+        # count = 0表示移除所有匹配的元素
+        return self.redis_conn.lrem(QUEUE_KEY, 0, session_id)
 
 def assign_agent(session_id: str) -> str | None:
     """

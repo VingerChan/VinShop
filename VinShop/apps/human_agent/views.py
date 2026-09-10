@@ -1,6 +1,6 @@
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
-from apps.human_agent.serializers import TransferCreateSerializer, SendMessageSerializer
+from apps.human_agent.serializers import TransferCreateSerializer, SendMessageSerializer, EndSessionSerializer
 from apps.human_agent.models import HumanAgentSession, HumanAgentMessage
 from rest_framework.response import Response
 from rest_framework import status
@@ -9,6 +9,8 @@ from django.db import transaction
 from apps.human_agent.queue_manager import WaitingQueue, assign_agent
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from django.utils import timezone
+from apps.human_agent.queue_manager import try_assign_from_queue
 
 # 创建转接会话
 class TransferCreateView(APIView):
@@ -123,3 +125,43 @@ class SendMessageView(APIView):
             'message_id': str(message.id),
             'created_at': message.create_time.isoformat(),
         }, status=status.HTTP_201_CREATED)
+
+# 结束会话(用户)
+class EndSessionView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        serializer = EndSessionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+        # 查询会话记录，同时校验两个条件：session_id 存在 且 属于当前用户
+        try:
+            session = HumanAgentSession.objects.get(session_id=data['session_id'], user=request.user)
+        except HumanAgentSession.DoesNotExist:
+            return Response({
+                'error': 'session_not_found',
+                'message': '会话不存在',
+            }, status=status.HTTP_404_NOT_FOUND)
+        with transaction.atomic():
+            session.status = 'session_completed'
+            session.ended_at = timezone.now()
+            session.end_reason = data.get('reason', '问题已解决')
+            session.summary = data.get('summary', '')
+            session.save(update_fields=['status','ended_at', 'end_reason', 'summary'])
+            if session.agent:    # 如果该会话已分配客服
+                agent = session.agent
+                # 当前客服 当前会话数 - 1
+                agent.current_sessions = max(0, agent.current_sessions - 1)
+                if agent.current_sessions < agent.max_capacity:
+                    agent.status = 'online'
+                agent.save(update_fields=['current_sessions', 'status'])
+        # 场景"排队中，主动取消会话"兜底
+        queue = WaitingQueue()
+        queue.remove(data['session_id'])
+        # 该会话结束后，为其他用户 分配客服
+        try_assign_from_queue()
+        return Response({
+            'success': True,
+            'status': session.status,
+            'ended_at': session.ended_at.isoformat(),
+        })
+
