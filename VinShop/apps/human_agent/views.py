@@ -154,6 +154,17 @@ class EndSessionView(APIView):
                 if agent.current_sessions < agent.max_capacity:
                     agent.status = 'online'
                 agent.save(update_fields=['current_sessions', 'status'])
+        # 通知客服 结束会话
+        if session.agent:
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"agent_{session.agent.agent_id}",
+                {
+                    'type': 'session_ended',
+                    'session_id': session.session_id,
+                    'reason': session.end_reason,
+                }
+            )
         # 场景"排队中，主动取消会话"兜底
         queue = WaitingQueue()
         queue.remove(data['session_id'])

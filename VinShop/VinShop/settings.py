@@ -398,3 +398,6 @@ CHANNEL_LAYERS = {
     }
 }
 QUEUE_MAX_SIZE = 100
+
+# ASGI配置
+ASGI_APPLICATION = 'VinShop.asgi.application'
