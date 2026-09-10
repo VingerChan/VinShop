@@ -102,6 +102,11 @@ def assign_agent(session_id: str) -> str | None:
     # 通过Channel Layer(消息中间件)向客服推送"新会话分配"通知
     channel_layer = get_channel_layer()
     history = session.ai_chat_history or []
+    from apps.human_agent.models import HumanAgentMessage
+    pending_messages = HumanAgentMessage.objects.filter(
+        session=session,
+        sender_type='user'
+    ).values('id', 'content', 'message_type', 'metadata', 'create_time')
     # group_send向指定组发送消息
     async_to_sync(channel_layer.group_send)(
         f"agent_{agent.agent_id}",    # 目标组：该客服的所有WebSocket连接
@@ -110,6 +115,7 @@ def assign_agent(session_id: str) -> str | None:
             'session_id': session.session_id,
             'user_id': session.user_id,
             'history': history,    # 附带AI聊天历史，方便客服了解上下文
+            'pending_messages': list(pending_messages),    # 排队期间用户的留言
         }
     )
     return agent.agent_id
@@ -143,7 +149,7 @@ async def assign_agent_async(session_id: str) -> str | None:
     :param session_id: 会话ID
     :return: agent_id 或 None
     """
-    from apps.human_agent.models import HumanAgent, HumanAgentSession
+    from apps.human_agent.models import HumanAgent, HumanAgentSession, HumanAgentMessage
 
     # 查询所有在线客服
     online_agents = await database_sync_to_async(
@@ -171,6 +177,12 @@ async def assign_agent_async(session_id: str) -> str | None:
     # 通过Channel Layer向客服推送"新会话分配"通知
     channel_layer = get_channel_layer()
     history = session.ai_chat_history or []
+    pending_messages = await database_sync_to_async(
+        lambda: list(HumanAgentMessage.objects.filter(
+            session=session,
+            sender_type='user'
+        ).values('id', 'content', 'message_type', 'metadata', 'create_time'))
+    )()
     await channel_layer.group_send(
         f"agent_{agent.agent_id}",
         {
@@ -178,6 +190,7 @@ async def assign_agent_async(session_id: str) -> str | None:
             'session_id': session.session_id,
             'user_id': session.user_id,
             'history': history,
+            'pending_messages': pending_messages,
         }
     )
     return agent.agent_id

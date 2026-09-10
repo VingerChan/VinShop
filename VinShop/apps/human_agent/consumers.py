@@ -178,6 +178,7 @@ class AgentConsumer(AsyncWebsocketConsumer):
             'session_id': event['session_id'],
             'user_id': event['user_id'],
             'history': event['history'],
+            'pending_messages': event.get('pending_messages', []),
         }))
 
     # 接收用户发来的消息(由SendMessageView触发)
