@@ -1,26 +1,26 @@
-from channels.generic.websocket import WebsocketConsumer
+from channels.generic.websocket import AsyncWebsocketConsumer
+from channels.db import database_sync_to_async
 import json
 from apps.human_agent.models import HumanAgent, HumanAgentSession, HumanAgentMessage
 from django.utils import timezone
-from apps.human_agent.queue_manager import try_assign_from_queue, WaitingQueue
+from apps.human_agent.queue_manager import try_assign_from_queue_async, WaitingQueue
 from channels.layers import get_channel_layer
-from asgiref.sync import async_to_sync
 
-class AgentConsumer(WebsocketConsumer):
-    def connect(self):
+class AgentConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
         # 从ws://host/agent/?token=abc123&user_id=42获取原始查询字符串
         params = dict(p.split('=') for p in self.scope['query_string'].decode().split('&') if '=' in p)
         self.agent_id = params.get('agent_id')    # 后续其他方法还需要用
         agent_name = params.get('agent_name', '')    # 只在本方法用
         max_capacity = int(params.get('max_capacity', 5))
         if not self.agent_id:
-            self.send(text_data=json.dumps({
+            await self.send(text_data=json.dumps({
                 'code': 4001,
                 'reason': '缺少agent_id参数'
             }))
-            self.close()
+            await self.close()
             return
-        agent, created = HumanAgent.objects.update_or_create(
+        agent, created = await database_sync_to_async(HumanAgent.objects.update_or_create)(
             agent_id=self.agent_id,
             defaults={
                 'agent_name': agent_name,
@@ -31,54 +31,58 @@ class AgentConsumer(WebsocketConsumer):
         )
         self.agent_name = agent.agent_name
         self.max_capacity = agent.max_capacity
-        self.channel_layer.group_add(f"agent_{self.agent_id}", self.channel_name)
-        self.accept()
-        self.send(text_data=json.dumps({
+        await self.channel_layer.group_add(f"agent_{self.agent_id}", self.channel_name)
+        await self.accept()
+        await self.send(text_data=json.dumps({
             'type': 'login_success',
             'agent_id': self.agent_id,
             'max_capacity': self.max_capacity,
         }))
-        try_assign_from_queue()
+        await try_assign_from_queue_async()
 
-    def disconnect(self, close_code):
+    async def disconnect(self, close_code):
         if hasattr(self, 'agent_id') and self.agent_id:
-            self.channel_layer.group_discard(
+            await self.channel_layer.group_discard(
                 f"agent_{self.agent_id}", self.channel_name
             )
             try:
-                agent = HumanAgent.objects.get(agent_id=self.agent_id)
+                agent = await database_sync_to_async(HumanAgent.objects.get)(agent_id=self.agent_id)
                 agent.status = 'offline'
-                agent.save(update_fields=['status'])
+                await database_sync_to_async(agent.save)(update_fields=['status'])
             except HumanAgent.DoesNotExist:
                 pass
-            active_sessions = HumanAgentSession.objects.filter(agent_id=self.agent_id, status='human_active')
+            active_sessions = await database_sync_to_async(
+                lambda: list(HumanAgentSession.objects.filter(agent__agent_id=self.agent_id, status='human_active'))
+            )()
             queue = WaitingQueue()
             for session in active_sessions:
                 session.status = 'in_queue'
                 session.agent = None
-                session.save(update_fields=['agent', 'status'])
-                queue.enqueue(session.session_id)    # 加入队列
-            try_assign_from_queue()
+                await database_sync_to_async(session.save)(update_fields=['agent', 'status'])
+                await database_sync_to_async(queue.enqueue)(session.session_id)    # 加入队列
+            await try_assign_from_queue_async()
 
-    def receive(self, text_data=None, bytes_data=None):
+    async def receive(self, text_data=None, bytes_data=None):
+        if not text_data:
+            return
         data = json.loads(text_data)
         msg_type = data.get('type')
         if msg_type == 'agent_message':
-            self.handle_agent_message(data)
+            await self.handle_agent_message(data)
         elif msg_type == 'end_session':
-            self.handle_end_session(data)
+            await self.handle_end_session(data)
 
     # 客服发送消息给用户
-    def handle_agent_message(self, data):
+    async def handle_agent_message(self, data):
         session_id = data.get('session_id')
         content = data.get('content', '')
         message_type = data.get('message_type', 'text')
         metadata = data.get('metadata')
         # 根据session_id查询会话记录
         try:
-            session = HumanAgentSession.objects.get(session_id=session_id)
+            session = await database_sync_to_async(HumanAgentSession.objects.select_related('agent').get)(session_id=session_id)
         except HumanAgentSession.DoesNotExist:
-            self.send(text_data=json.dumps({
+            await self.send(text_data=json.dumps({
                 'type': 'error',
                 'code': 4004,
                 'reason': '会话不存在'
@@ -86,14 +90,14 @@ class AgentConsumer(WebsocketConsumer):
             return
         # 校验session是否属于当前客服
         if not session.agent or session.agent.agent_id != self.agent_id:
-            self.send(text_data=json.dumps({
+            await self.send(text_data=json.dumps({
                 'type': 'error',
                 'code': 4005,
                 'reason': '无权操作此会话',
             }))
             return
         # 将客服消息持久化到数据库
-        HumanAgentMessage.objects.create(
+        await database_sync_to_async(HumanAgentMessage.objects.create)(
             session=session,
             sender_type='agent',
             sender_id=self.agent_id,
@@ -102,10 +106,9 @@ class AgentConsumer(WebsocketConsumer):
             metadata=metadata,
         )
         # 更新session的update_time
-        session.save(update_fields=['update_time'])
+        await database_sync_to_async(session.save)(update_fields=['update_time'])
         # 通过Channel Layer向用户端WebSocket推送消息
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
+        await self.channel_layer.group_send(
             f"user_{session.user_id}",
             {
                 'type': 'user_message',
@@ -116,16 +119,16 @@ class AgentConsumer(WebsocketConsumer):
         )
 
     # 客服结束会话
-    def handle_end_session(self, data):
+    async def handle_end_session(self, data):
         """客服结束会话"""
         session_id = data.get('session_id')
         reason = data.get('reason', '问题已解决')
         summary = data.get('summary', '')
         # 更新会话状态为已完成
         try:
-            session = HumanAgentSession.objects.get(session_id=session_id)
+            session = await database_sync_to_async(HumanAgentSession.objects.select_related('agent').get)(session_id=session_id)
         except HumanAgentSession.DoesNotExist:
-            self.send(text_data=json.dumps({
+            await self.send(text_data=json.dumps({
                 'type': 'error',
                 'code': 4004,
                 'reason': '会话不存在'
@@ -133,7 +136,7 @@ class AgentConsumer(WebsocketConsumer):
             return
         # 校验session是否属于当前客服
         if not session.agent or session.agent.agent_id != self.agent_id:
-            self.send(text_data=json.dumps({
+            await self.send(text_data=json.dumps({
                 'type': 'error',
                 'code': 4005,
                 'reason': '无权操作此会话',
@@ -143,17 +146,16 @@ class AgentConsumer(WebsocketConsumer):
         session.ended_at = timezone.now()
         session.end_reason = reason
         session.summary = summary
-        session.save(update_fields=['status', 'ended_at', 'end_reason', 'summary'])
+        await database_sync_to_async(session.save)(update_fields=['status', 'ended_at', 'end_reason', 'summary'])
         # 释放客服容量
         if session.agent:
             agent = session.agent
             agent.current_sessions = max(0, agent.current_sessions - 1)
             if agent.current_sessions < agent.max_capacity:
                 agent.status = 'online'
-            agent.save(update_fields=['current_sessions', 'status'])
+            await database_sync_to_async(agent.save)(update_fields=['current_sessions', 'status'])
         # 通知用户会话已结束
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
+        await self.channel_layer.group_send(
             f"user_{session.user_id}",
             {
                 'type': 'session_ended',
@@ -162,7 +164,7 @@ class AgentConsumer(WebsocketConsumer):
             }
         )
         # 尝试从排队队列中为其他用户分配客服
-        try_assign_from_queue()
+        await try_assign_from_queue_async()
 
     """
             Channel Layer 消息处理器
@@ -170,8 +172,8 @@ class AgentConsumer(WebsocketConsumer):
         Channels 会根据message['type] 找到同名方法并调用
     """
     # 接收新会话分配通知(由assign_agent函数触发)
-    def new_assignment(self, event):
-        self.send(text_data=json.dumps({
+    async def new_assignment(self, event):
+        await self.send(text_data=json.dumps({
             'type': 'new_assignment',
             'session_id': event['session_id'],
             'user_id': event['user_id'],
@@ -179,8 +181,8 @@ class AgentConsumer(WebsocketConsumer):
         }))
 
     # 接收用户发来的消息(由SendMessageView触发)
-    def user_message(self, event):
-        self.send(text_data=json.dumps({
+    async def user_message(self, event):
+        await self.send(text_data=json.dumps({
             'type': 'user_message',
             'session_id': event['session_id'],
             'content': event['content'],
@@ -188,15 +190,15 @@ class AgentConsumer(WebsocketConsumer):
         }))
 
     # 接收会话结束通知(由EndSessionView触发)
-    def session_ended(self, event):
-        self.send(text_data=json.dumps({
+    async def session_ended(self, event):
+        await self.send(text_data=json.dumps({
             'type': 'session_ended',
             'session_id': event['session_id'],
             'reason': event['reason'],
         }))
 
-class UserConsumer(WebsocketConsumer):
-    def connect(self):
+class UserConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
         params = dict(
             p.split('=')
             for p in self.scope['query_string'].decode().split('&')
@@ -204,42 +206,42 @@ class UserConsumer(WebsocketConsumer):
         )
         self.user_id = params.get('user_id')
         if not self.user_id:
-            self.send(text_data=json.dumps({
+            await self.send(text_data=json.dumps({
                 'code': 4001,
                 'reason': '缺少user_id参数',
             }))
-            self.close()
+            await self.close()
             return
         # 把当前这个WebSocket连接加入一个channel group
-        self.channel_layer.group_add(
+        await self.channel_layer.group_add(
             f'user_{self.user_id}', self.channel_name
         )
-        self.accept()    # 接受WebSocket连接
-        self.send(text_data=json.dumps({
+        await self.accept()    # 接受WebSocket连接
+        await self.send(text_data=json.dumps({
             'type': 'connect_success',
             'user_id': self.user_id,
         }))
 
-    def disconnect(self, close_code):
+    async def disconnect(self, close_code):
         if hasattr(self, 'user_id') and self.user_id:
-            self.channel_layer.group_discard(
+            await self.channel_layer.group_discard(
                 f'user_{self.user_id}', self.channel_name
             )
 
-    def receive(self, text_data=None, bytes_data=None):
+    async def receive(self, text_data=None, bytes_data=None):
             pass
 
     # Channel Layer 消息处理器
-    def user_message(self, event):
-        self.send(text_data=json.dumps({
+    async def user_message(self, event):
+        await self.send(text_data=json.dumps({
             'type': 'user_message',
             'session_id': event['session_id'],
             'content': event['content'],
             'metadata': event.get('metadata'),
         }))
 
-    def session_ended(self, event):
-        self.send(text_data=json.dumps({
+    async def session_ended(self, event):
+        await self.send(text_data=json.dumps({
             'type': 'session_ended',
             'session_id': event['session_id'],
             'reason': event['reason'],

@@ -131,3 +131,67 @@ def try_assign_from_queue():
             break
         # 分配成功，从队列中移除该用户
         queue.dequeue()
+
+# 异步版本 (供 AsyncWebsocketConsumer 使用)
+
+from channels.db import database_sync_to_async
+from channels.layers import get_channel_layer
+
+async def assign_agent_async(session_id: str) -> str | None:
+    """
+    异步版本：为会话分配客服
+    :param session_id: 会话ID
+    :return: agent_id 或 None
+    """
+    from apps.human_agent.models import HumanAgent, HumanAgentSession
+
+    # 查询所有在线客服
+    online_agents = await database_sync_to_async(
+        lambda: list(HumanAgent.objects.filter(status='online'))
+    )()
+    # 筛选出当前会话数 < 最大容量的客服
+    available_agents = [agent for agent in online_agents if agent.current_sessions < agent.max_capacity]
+    # 优先分配负载较低的客服
+    available_agents.sort(key=lambda agent: agent.max_capacity - agent.current_sessions, reverse=True)
+    # 没有可用客服
+    if not available_agents:
+        return None
+    # 选择槽位最多的客服
+    agent = available_agents[0]
+    # 更新客服的会话计数
+    agent.current_sessions += 1
+    if agent.current_sessions >= agent.max_capacity:
+        agent.status = 'busy'
+    await database_sync_to_async(agent.save)(update_fields=['current_sessions', 'status'])
+    # 更新会话状态：绑定客服，状态改为人工客服服务中
+    session = await database_sync_to_async(HumanAgentSession.objects.get)(session_id=session_id)
+    session.agent = agent
+    session.status = 'human_active'
+    await database_sync_to_async(session.save)(update_fields=['agent', 'status'])
+    # 通过Channel Layer向客服推送"新会话分配"通知
+    channel_layer = get_channel_layer()
+    history = session.ai_chat_history or []
+    await channel_layer.group_send(
+        f"agent_{agent.agent_id}",
+        {
+            'type': 'new_assignment',
+            'session_id': session.session_id,
+            'user_id': session.user_id,
+            'history': history,
+        }
+    )
+    return agent.agent_id
+
+async def try_assign_from_queue_async():
+    """异步版本：尝试从队列中分配用户给空闲客服"""
+    queue = WaitingQueue()
+    while True:
+        # WaitingQueue 的 Redis 调用是同步的，用 database_sync_to_async 包装
+        session_id = await database_sync_to_async(queue.peek)()
+        if not session_id:
+            break
+        session_id = session_id.decode() if isinstance(session_id, bytes) else session_id
+        agent_id = await assign_agent_async(session_id)
+        if agent_id is None:
+            break
+        await database_sync_to_async(queue.dequeue)()
